@@ -25,15 +25,14 @@ def cli():
 @cli.command('split', options_metavar='<options>', short_help='split a BAM file into many')
 @click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
 @click.argument('number', metavar='number', type=int)
-@click.option('-b', '--boundary', is_flag=True, help='make sure splitting contains consecutive reads')
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="output directory")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def split(bam_file, number, boundary, directory, verbose):
+def split(bam_file, number, directory, verbose):
     """
     Convert a BAM file (bam_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
-    alntools.split_bam(bam_file, number, boundary, directory)
+    alntools.split_bam(bam_file, number, directory)
 
 
 @cli.command('bam2ec', options_metavar='<options>', short_help='convert a BAM file to EC')
@@ -51,7 +50,7 @@ def bam2ec(bam_file, ec_file, chunks, targets, directory, verbose):
     alntools.bam2ec(bam_file, ec_file, chunks, targets, directory)
 
 
-@cli.command('bam2emase', options_metavar='<options>', short_help='convert a BAM file to EC')
+@cli.command('bam2emase', options_metavar='<options>', short_help='convert a BAM file to APM')
 @click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
 @click.argument('emase_file', metavar='emase_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
 @click.option('-c', '--chunks', default=0, help="number of chunks to process")
@@ -75,15 +74,7 @@ def emase2ec(emase_file, ec_file, verbose):
     Convert an EMASE file (emase_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
-    LOG = utils.get_logger()
-    LOG.debug("EMASE: {}".format(emase_file))
-    LOG.debug("EC: {}".format(ec_file))
-
-    tstart = time.time()
-    #create.create_snp_db(vcf_file, sqlite_file)
-    tend = time.time()
-
-    LOG.info("Creation time: {}".format(utils.format_time(tstart, tend)))
+    alntools.emase2ec(emase_file, ec_file)
 
 
 @cli.command('ec2emase', options_metavar='<options>', short_help='convert an EC file to EMASE')
@@ -95,15 +86,7 @@ def ec2emase(ec_file, emase_file, verbose):
     Convert an EC file (ec_file) to an EMASE file (emase_file).
     """
     utils.configure_logging(verbose)
-    LOG = utils.get_logger()
-    LOG.debug("EC: {}".format(ec_file))
-    LOG.debug("EMASE: {}".format(emase_file))
-
-    tstart = time.time()
-    #create.create_snp_db(vcf_file, sqlite_file)
-    tend = time.time()
-
-    LOG.info("Creation time: {}".format(utils.format_time(tstart, tend)))
+    alntools.ec2emase(ec_file, emase_file)
 
 
 if __name__ == '__main__':

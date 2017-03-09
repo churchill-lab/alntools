@@ -16,6 +16,7 @@ from past.builtins import xrange
 from collections import OrderedDict
 
 import logging
+import os
 
 logging.basicConfig(format='[alntools] [%(asctime)s] %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
 
@@ -168,3 +169,15 @@ def delete_file(file_name):
     except:
         pass
 
+
+def truncate_file(fname, bytes_from_end):
+    """
+
+    :param fname:
+    :param bytes_from_end:
+    :return:
+    """
+    f = open(fname, 'r+')
+    f.seek(-1 * bytes_from_end, os.SEEK_END)
+    f.truncate()
+    f.close()

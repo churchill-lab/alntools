@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
-from collections import OrderedDict
+from collections import OrderedDict, namedtuple
 from struct import pack
 import multiprocessing
 import os
+import struct
 import sys
 import time
 
@@ -22,6 +23,10 @@ LOG = utils.get_logger()
 BAM_HEADER = "\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00\x42\x43\x02\x00"
 BAM_EOF = "\x1f\x8b\x08\x04\x00\x00\x00\x00\x00\xff\x06\x00BC\x02\x00\x1b\x00\x03\x00\x00\x00\x00\x00\x00\x00\x00\x00"
 
+parse_fields = ["header_size", "begin_read_offset", "begin_read_size", "file_offset", "file_bytes", "end_read_offset",
+                "end_read_size"]
+ParseRecord = namedtuple("ParseRecord", parse_fields)
+
 
 class MPParams(object):
     """
@@ -33,15 +38,14 @@ class MPParams(object):
     #   - idx, vo_start, vo_end
 
     """
-    slots = ['input_file', 'target_file', 'header_size', 'temp_dir', 'process_id', 'data', 'emase']
+    slots = ['input_file', 'target_file', 'temp_dir', 'process_id', 'data', 'emase']
 
     def __init__(self):
         self.input_file = None
         self.target_file = None
-        self.header_size = None
         self.temp_dir = None
         self.process_id = None
-        self.data = []
+        self.data = [] # tuple of (idx, ParseRecord)
         self.emase = False
 
     def __str__(self):
@@ -103,126 +107,18 @@ def fix_bam(filename):
         h.write(BAM_EOF)
         h.close()
 
-
-def calculate_chunks(filename, num_chunks, split_on_read=True):
-    """
-    Calculate the boundaries in the BAM file and partition into chunks.
-
-    :param filename: name of the BAM file
-    :param num_chunks: number of chunks to partition the boundaries into
-    :param split_on_read: True to make sure reads does not cross boundary
-    :return: a list of tuples containing the start and end boundaries
-    """
-    if num_chunks == 1:
-        return [[0, -1]]
-
-    try:
-        #
-        # calculate the virtual offsets
-        #
-        virtual_offsets = []
-        with open(filename) as f:
-            raw_starts = []
-
-            #
-            # loop through all the blocks in the BGZF file
-            #
-            # For example:
-            #
-            # Raw start 0, raw length 10599; data start 0, data length 65280
-            # Raw start 10599, raw length 10566; data start 65280, data length 65280
-            # Raw start 21165, raw length 10564; data start 130560, data length 65280
-            # Raw start 31729, raw length 10614; data start 195840, data length 65280
-            # ...
-            # Raw start 346924153, raw length 3373; data start 6329574620, data length 65118
-            # Raw start 346927526, raw length 2117; data start 6329639738, data length 25919
-            # Raw start 346929643, raw length 28; data start 6329665657, data length 0
-            #
-            for values in bgzf.BgzfBlocks(f):
-                # print("Raw start %i, raw length %i; data start %i, data length %i" % values)
-                raw_starts.append(values[0])
-
-            #
-            # split all the raw_offsets in to num_chunk partitions
-            #
-            # if the length of raw_starts is 97163 and num_chunks is 100
-            # the length of partitioned_offsets will be 100, with 972 or 971 elements in each
-            #
-            # if the length of raw_starts is 97163 and num_chunks is 8
-            # the length of partitioned_offsets will be 8, with 12146 or 12145 elements in each
-            #
-            partitioned_offsets = utils.partition(raw_starts, num_chunks)
-
-            #
-            # we only care about the first element in each partition
-            #
-            # idx = 0, val = [0, 10599, ..., 66709601]
-            # idx = 1, val = [66716673, 66723598, ..., 134359341]
-            # idx = 2, val = [134363783, 134368385, ..., 167756992]
-            # idx = 3, val = [167758895, 167760831, ..., 201555859]
-            # idx = 4, val = [201563777, 201571108, ..., 236543166]
-            # idx = 5, val = [236545058, 236547005, ..., 266155978]
-            # idx = 6, val = [266157839, 266159848, ..., 304207581]
-            # idx = 7, val = [304212462, 304216564, ..., 346929643]
-            for idx, val in enumerate(partitioned_offsets):
-                # print("idx = {}, val = {}".format(idx, str(val)))
-                virtual_offsets.append(bgzf.make_virtual_offset(val[0], 0))
-
-        if len(virtual_offsets) == 0:
-            return [[0, -1]]
-
-        if split_on_read:
-            #
-            # now open the alignment file, calculate the boundaries for reads and adjust accordingly
-            #
-            LOG.debug("Adjusting boundaries of virtual offsets")
-            aln_file = pysam.AlignmentFile(filename)
-            idx = 1
-            while idx < len(virtual_offsets):
-                current_chunk = virtual_offsets[idx]
-                virtual_offset = current_chunk
-                aln_file.seek(virtual_offset)
-                aln = aln_file.next()
-                aln_last = aln
-
-                while aln.qname == aln_last.qname:
-                    virtual_offset = aln_file.tell()
-                    aln = aln_file.next()
-
-                # fix the chunks
-                virtual_offsets[idx] = virtual_offset
-                idx += 1
-
-            aln_file.close()
-        else:
-            LOG.debug("No boundary adjustments of virtual offsets necessary")
-
-        start_stops = []
-        idx = 0
-        while idx < len(virtual_offsets) - 1:
-            start_stops.append((virtual_offsets[idx], virtual_offsets[idx+1]))
-            idx += 1
-
-        start_stops.append((virtual_offsets[idx], -1))
-
-        return start_stops
-
-    except Exception as e:
-        LOG.error('calculate_chunks error: {}'.format(str(e)))
-
-
 def process_piece(mp):
     """
 
     :return:
     """
-    LOG.info('Process ID: {}, Input File: {}'.format(mp.process_id, mp.input_file))
+    LOG.debug('Process ID: {}, Input File: {}'.format(mp.process_id, mp.input_file))
 
     if mp.target_file:
-        LOG.info('Process ID: {}, Target File: {}'.format(mp.process_id, mp.target_file))
+        LOG.debug('Process ID: {}, Target File: {}'.format(mp.process_id, mp.target_file))
 
     if mp.emase:
-        LOG.info('Process ID: {}, Emase format requested'.format(mp.process_id))
+        LOG.debug('Process ID: {}, Emase format requested'.format(mp.process_id))
 
     try:
         sam_file = pysam.Samfile(mp.input_file, 'rb')
@@ -295,21 +191,13 @@ def process_piece(mp):
         for file_info_data in mp.data:
             try:
                 idx = file_info_data[0]
-                offset_bytes = file_info_data[1]
-                chunk_bytes = file_info_data[2]
+                parse_record = file_info_data[1]
 
                 # must create the file
                 temp_file = "{}{}.bam".format(temp_name, idx)
                 LOG.debug("Process ID: {}, Creating alignment file: {}".format(mp.process_id, temp_file))
-
                 utils.delete_file(temp_file)
-
-                if idx != 0:
-                    utils.bytes_from_file(mp.input_file, temp_file, 0, mp.header_size)
-
-                utils.bytes_from_file(mp.input_file, temp_file, offset_bytes, chunk_bytes)
-                fix_bam(temp_file)
-
+                chunk_file(mp.input_file, temp_file, parse_record)
                 LOG.debug("Process ID: {}, Opening alignment file: {}".format(mp.process_id, temp_file))
 
                 sam_file = pysam.AlignmentFile(temp_file)
@@ -389,7 +277,7 @@ def process_piece(mp):
                             same_read_target_counter += 1
 
                     if all_alignments % 100000 == 0:
-                        LOG.info("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(mp.process_id, temp_file, valid_alignments, all_alignments, len(ec)))
+                        LOG.debug("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(mp.process_id, temp_file, valid_alignments, all_alignments, len(ec)))
 
             except StopIteration:
                 LOG.info(
@@ -418,12 +306,12 @@ def process_piece(mp):
 
     haplotypes = sorted(list(haplotypes))
 
-    LOG.info("# Unique Reads: {:,}".format(len(unique_reads)))
-    LOG.info("# Reads/Target Duplications: {:,}".format(same_read_target_counter))
-    LOG.info("# Main Targets: {:,}".format(len(main_targets)))
-    LOG.info("# Haplotypes: {:,}".format(len(haplotypes)))
-    LOG.info("# Unique Targets: {:,}".format(len(unique_tids)))
-    LOG.info("# Equivalence Classes: {:,}".format(len(ec)))
+    LOG.debug("# Unique Reads: {:,}".format(len(unique_reads)))
+    LOG.debug("# Reads/Target Duplications: {:,}".format(same_read_target_counter))
+    LOG.debug("# Main Targets: {:,}".format(len(main_targets)))
+    LOG.debug("# Haplotypes: {:,}".format(len(haplotypes)))
+    LOG.debug("# Unique Targets: {:,}".format(len(unique_tids)))
+    LOG.debug("# Equivalence Classes: {:,}".format(len(ec)))
 
     ret = ConvertResults()
     ret.main_targets = main_targets
@@ -465,16 +353,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     if not temp_dir:
         temp_dir = os.path.dirname(output_filename)
 
-    #
-    # grab header
-    #
-    LOG.info("Determining header...")
-    temp_time = time.time()
-    header_end = get_header_size(bam_filename)
-    LOG.info("Header sized determined: {:,} in {}, total time: {}".format(header_end,
-                                                                          utils.format_time(temp_time, time.time()),
-                                                                          utils.format_time(start_time, time.time())))
-
     LOG.info("Calculating {:,} chunks".format(num_chunks))
     temp_time = time.time()
     chunks = calculate_chunks(bam_filename, num_chunks)
@@ -484,33 +362,21 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
     # each core needs
     # - name of alignment file
-    # - header size
     # - target file
     # - list of files to create and work on
-    #   - idx, vo_start, vo_end
+    #   - idx, mp_param
 
     all_params = []
 
     for temp_chunk_ids in utils.partition([idx for idx in xrange(num_chunks)], num_processes):
         params = MPParams()
         params.input_file = bam_filename
-        params.header_size = header_end
         params.target_file = target_filename
         params.temp_dir = temp_dir
 
         for x, cid in enumerate(temp_chunk_ids):
             params.process_id = str(cid)
-
-            chunk = chunks[cid]
-            offset_bytes = chunk[0] >> 16
-
-            if chunk[1] > 0:
-                chunk_bytes = (chunk[1] >> 16) - offset_bytes
-            else:
-                chunk_bytes = -1
-
-            # idx, start, chunk
-            params.data.append([cid, offset_bytes, chunk_bytes])
+            params.data.append((cid, chunks[cid]))
 
         all_params.append(params)
 
@@ -524,6 +390,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     final.unique_reads = {}
 
     LOG.info("Starting {} processes ...".format(num_processes))
+
     temp_time = time.time()
     args = zip(all_params)
     pool = multiprocessing.Pool(num_processes)
@@ -532,7 +399,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("All processes done in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
-    LOG.info("Combining {} results ...".format(pool, len(results)))
+    LOG.info("Combining {} results ...".format(len(results)))
     temp_time = time.time()
 
     alignment_file = pysam.AlignmentFile(bam_filename)
@@ -568,7 +435,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 else:
                     final.unique_reads[k] = v
 
-        LOG.info("CHUNK {}: results combined in {}, total time: {}".format(idx, utils.format_time(temp_time, time.time()),
+        LOG.debug("CHUNK {}: results combined in {}, total time: {}".format(idx, utils.format_time(temp_time, time.time()),
                  utils.format_time(start_time, time.time())))
 
     LOG.info("All results combined in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
@@ -582,7 +449,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info( "# Equivalence Classes: {:,}".format(len(final.ec)))
 
 
-
     try:
         os.remove(output_filename)
     except OSError:
@@ -590,7 +456,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
     if emase:
         try:
-            LOG.info('Creating APM...')
+            temp_time = time.time()
+            LOG.info('Constructing APM structure...')
 
             new_shape = (len(final.main_targets), len(final.haplotypes), len(final.ec))
 
@@ -630,47 +497,56 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                             # ec_idx[k] = index of ec
                             apm.set_value(final.main_targets[main_target], i, final.ec_idx[k], 1)
 
-            LOG.info("Finalizing...")
+            LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                                utils.format_time(start_time, time.time())))
+
+            temp_time = time.time()
+            LOG.info("Flushing to disk...")
             apm.finalize()
             apm.save(output_filename, title='bam2ec')
+            LOG.info("{} created in {}, total time: {}".format(output_filename,
+                                                               utils.format_time(temp_time, time.time()),
+                                                               utils.format_time(start_time, time.time())))
+
         except Exception as e:
             LOG.fatal("ERROR: {}".format(str(e)))
             raise Exception(e)
     else:
         try:
+            temp_time = time.time()
             LOG.info("Generating BIN file...")
 
             f = open(output_filename, "wb")
 
             # version
             f.write(pack('<i', 1))
-            LOG.info("1\t# VERSION")
+            LOG.info("VERSION: 1")
 
             # targets
-            LOG.info("{:,}\t# NUMBER OF TARGETS".format(len(final.main_targets)))
+            LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
             f.write(pack('<i', len(final.main_targets)))
             for main_target, idx in final.main_targets.iteritems():
-                LOG.info("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+                LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
                 f.write(pack('<i', len(main_target)))
                 f.write(pack('<{}s'.format(len(main_target)), main_target))
 
             # haplotypes
-            LOG.info("{:,}\t# NUMBER OF HAPLOTYPES".format(len(final.haplotypes)))
+            LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
             f.write(pack('<i', len(final.haplotypes)))
             for idx, hap in enumerate(final.haplotypes):
-                LOG.info("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+                LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
                 f.write(pack('<i', len(hap)))
                 f.write(pack('<{}s'.format(len(hap)), hap))
 
             # equivalence classes
-            LOG.info("{:,}\t# NUMBER OF EQUIVALANCE CLASSES".format(len(final.ec)))
+            LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(final.ec)))
             f.write(pack('<i', len(final.ec)))
             for idx, k in enumerate(final.ec.keys()):
                 # ec[k] is the count
-                LOG.info("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
+                LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
                 f.write(pack('<i', final.ec[k]))
 
-            LOG.info("Determining mappings...")
+            LOG.debug("Determining mappings...")
 
             # equivalence class mappings
             counter = 0
@@ -684,7 +560,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
                 counter += len(temp_main_targets)
 
-            LOG.info("{:,}\t# NUMBER OF EQUIVALANCE CLASS MAPPINGS".format(counter))
+            LOG.info("NUMBER OF EQUIVALANCE CLASS MAPPINGS: {:,}".format(counter))
             f.write(pack('<i', counter))
 
             for k, v in final.ec.iteritems():
@@ -716,25 +592,29 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     f.write(pack('<i', utils.list_to_int(bits)))
 
             f.close()
+
+            LOG.info("{} created in {}, total time: {}".format(output_filename,
+                                                               utils.format_time(temp_time, time.time()),
+                                                               utils.format_time(start_time, time.time())))
+
         except Exception as e:
             LOG.error("Error: {}".format(str(e)))
 
 
 
-def split_bam(bam_filename, number_files, boundary=False, output_dir=None):
+def split_bam(bam_filename, number_files, output_dir=None):
     """
     Split a BAM file
 
-    :param bam_filename:
-    :param number_files:
-    :param boundary:
+    :param bam_filename: the name of the BAM file
+    :param number_files: number of files to chunk into
+    :param output_dir: output directory, defaults to bam_filename directory
     :return:
     """
     start_time = time.time()
 
     LOG.debug("BAM File: {}".format(bam_filename))
     LOG.debug("Number of Files: {}".format(number_files))
-    LOG.debug("Boundary: {}".format(boundary))
 
     if not output_dir:
         output_dir = os.path.dirname(bam_filename)
@@ -745,43 +625,298 @@ def split_bam(bam_filename, number_files, boundary=False, output_dir=None):
     bam_prefixname, bam_extension = os.path.splitext(bam_basename)
     bam_output_temp = os.path.join(output_dir, bam_prefixname)
 
-    LOG.info("Determining header...")
-    temp_time = time.time()
-    header_size = get_header_size(bam_filename)
-    LOG.info("Header sized determined: {:,} in {}, total time: {}".format(header_size,
-                                                                          utils.format_time(temp_time, time.time()),
-                                                                          utils.format_time(start_time, time.time())))
-
     LOG.info("Calculating {:,} chunks...".format(number_files))
     temp_time = time.time()
-    chunks = calculate_chunks(bam_filename, number_files, boundary)
+    chunks = calculate_chunks(bam_filename, number_files)
     LOG.info("{:,} chunks calculated in {}, total time: {}".format(len(chunks),
                                                                    utils.format_time(temp_time, time.time()),
                                                                    utils.format_time(start_time, time.time())))
 
     for idx, chunk in enumerate(chunks):
-        offset_bytes = chunk[0] >> 16
-
-        if chunk[1] > 0:
-            chunk_bytes = (chunk[1] >> 16) - offset_bytes
-        else:
-            chunk_bytes = -1
-
         # must create the file
         new_file = "{}_{}{}".format(bam_output_temp, idx, bam_extension)
         LOG.debug("Creating alignment file: {}".format(new_file))
-
-        if idx != 0:
-            utils.bytes_from_file(bam_filename, new_file, 0, header_size)
-
-        utils.bytes_from_file(bam_filename, new_file, offset_bytes, chunk_bytes)
-        fix_bam(new_file)
+        chunk_file(bam_filename, new_file, chunk)
 
     LOG.info("{:,} files created in {}, total time: {}".format(len(chunks),
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
 
+def bytes_from_file_bam(read_filename, write_filename, offset=0, bytes_size=-1):
+    """
+    Read bytes from a file and append them onto another file.
 
+    :param read_filename: the name of the file to read from
+    :param write_filename: the name of the file to write to
+    :param offset: the number of bytes to offset (seek)
+    :param bytes_size: the number of bytes to read, -1 = to end of file
+    :return:
+    """
+    try:
+
+        with open(read_filename, "rb") as fr:
+            if offset > 0:
+                fr.seek(offset)
+
+            if bytes_size > 0:
+                data = fr.read(bytes_size)
+            else:
+                data = fr.read()
+
+            mode = 'r+b'
+            size = os.path.getsize(write_filename)
+
+            with open(write_filename, mode) as fw:
+                fw.seek(size - 28)
+                temp = fw.read()
+                if temp == BAM_EOF:
+                    fw.seek(size - 28)
+                # else:
+                #    fw.seek(size)
+                fw.write(data)
+    except Exception as e:
+        print 'ERROR : ', str(e)
+
+
+
+"""
+import pysam
+from Bio import bgzf
+fhin = "../bam2ec/data/smaller_file/bowtie.bam"
+fhout = open("tells", "w")
+try:
+    aln_file = pysam.AlignmentFile(fhin)
+
+
+    i = 1
+    while True:
+        tell = aln_file.tell()
+        aln = aln_file.next()
+        data = bgzf.split_virtual_offset(tell)
+        fhout.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(i, data[0], data[1], tell, aln.qname, aln.tid))
+        i += 1
+except StopIteration:
+    pass
+fhout.close()
+"""
+
+
+"""
+
+
+
+
+
+"""
+
+
+
+def calculate_chunks(filename, num_chunks):
+    """
+    Calculate the boundaries in the BAM file and partition into chunks.
+
+    :param filename: name of the BAM file
+    :param num_chunks: number of chunks to partition the boundaries into
+    :return: a list of tuples containing the start and end boundaries
+    """
+    if num_chunks == 1:
+        return [[0, -1]]
+
+    try:
+        f = open(filename, 'r')
+        # get all the block start offsets
+        block_offsets = []
+        decompressed_lengths = []
+        i = 0
+
+        for values in FastBgzfBlocks(f):
+        #for values in bgzf.BgzfBlocks(f):
+
+            block_offsets.append(values[0])
+            decompressed_lengths.append(values[3])
+
+            if i % 10000 == 0:
+                LOG.debug('Chunk {}'.format(i))
+            i = i + 1
+
+        # partition the starts into manageable chunks
+        div, mod = divmod(len(block_offsets), num_chunks)
+
+        aln_file = pysam.AlignmentFile(filename)
+        header_size = bgzf.split_virtual_offset(aln_file.tell())[0]
+        partitioned_offsets = [(header_size, 0)]
+
+        for i in xrange(1, num_chunks):
+            index = div * i + min(i, mod)
+            virtual_offset = bgzf.make_virtual_offset(block_offsets[index], 0)
+            aln_file.seek(virtual_offset)
+            aln = aln_file.next()
+            aln_first = aln
+
+            while aln.qname == aln_first.qname:
+                virtual_offset = aln_file.tell()
+                aln = aln_file.next()
+
+            partitioned_offsets.append(bgzf.split_virtual_offset(virtual_offset))
+
+        aln_file.close()
+
+        # now let's calculate beginning and ends
+        params = []
+
+        for i, offset in enumerate(partitioned_offsets):
+            #print '{} => {}'.format(i, offset)
+
+            index = block_offsets.index(partitioned_offsets[i][0])
+            begin_read_offset = 0
+            begin_read_size = 0
+            file_offset = 0
+            file_bytes = 0
+            end_read_offset = 0
+            end_read_size = 0
+
+            if i == 0:
+                # first
+                begin_read_offset = 0
+                begin_read_size = 0
+                file_offset = block_offsets[index]
+                #print 'file_offset=', file_offset
+                file_bytes = partitioned_offsets[i + 1][0] - file_offset
+                #print 'file_bytes=', file_bytes
+                end_read_offset = bgzf.make_virtual_offset(partitioned_offsets[i + 1][0], 0)
+                end_read_size = partitioned_offsets[i + 1][1]
+            elif i == num_chunks - 1:
+                # last
+                begin_read_offset = bgzf.make_virtual_offset(partitioned_offsets[i][0], partitioned_offsets[i][1])
+                begin_read_size = decompressed_lengths[index] - partitioned_offsets[i][1]
+                file_offset = block_offsets[index + 1]
+                file_bytes = -1
+                end_read_offset = 0
+                end_read_size = 0
+            else:
+                # all others
+                if offset[1] == 0:
+                    # bgzf boundary
+                    print '****************HUH'
+                    return
+
+                begin_read_offset = bgzf.make_virtual_offset(partitioned_offsets[i][0], partitioned_offsets[i][1])
+                begin_read_size = decompressed_lengths[index] - partitioned_offsets[i][1]
+                file_offset = block_offsets[index + 1]
+                file_bytes = partitioned_offsets[i + 1][0] - file_offset
+                end_read_offset = bgzf.make_virtual_offset(partitioned_offsets[i + 1][0], 0)
+                end_read_size = partitioned_offsets[i + 1][1]
+
+            pr = ParseRecord(header_size, begin_read_offset, begin_read_size, file_offset, file_bytes, end_read_offset,
+                             end_read_size)
+            params.append(pr)
+
+        return params
+
+    except Exception as e:
+        print 'calculate_chunks error: {}'.format(str(e))
+
+
+
+def truncate_bam_file(fname):
+    """
+    Remove the EOF from BGZF/BAM file.
+
+    Does not check if the hEOF is present or not.
+
+    :param fname: the name of the BZF/BAM file
+    :return:
+    """
+    utils.truncate_file(fname, 28)
+
+
+def FastBgzfBlocks(handle):
+    """
+    Faster version of bgzf.BgzfBlocks
+
+    :param handle: the handle to the BGZF file
+    :return: tuple of start offset, block length, data offset, data length
+    """
+    data_start = 0
+    while True:
+        start_offset = handle.tell()
+        # This may raise StopIteration which is perfect here
+        block_length, data_len = _quick_bgzf_load(handle)
+        yield start_offset, block_length, data_start, data_len
+        data_start += data_len
+
+
+def _quick_bgzf_load(handle):
+    """
+    Quicker version of bgzf._bgzf_load.  No decompressing of BGZF data.  Just getting meta information.
+    """
+    magic = handle.read(4)
+
+    if not magic:
+        raise StopIteration
+
+    if magic != bgzf._bgzf_magic:
+        raise ValueError("A BGZF block should start with %r, not %r; handle.tell() now says %r" % (bgzf._bgzf_magic, magic, handle.tell()))
+    gzip_mod_time, gzip_extra_flags, gzip_os, extra_len = struct.unpack("<LBBH", handle.read(8))
+    block_size = None
+    x_len = 0
+    while x_len < extra_len:
+        subfield_id = handle.read(2)
+        subfield_len = struct.unpack("<H", handle.read(2))[0]
+        subfield_data = handle.read(subfield_len)
+        x_len += subfield_len + 4
+        if subfield_id == bgzf._bytes_BC:
+            assert subfield_len == 2, "Wrong BC payload length"
+            assert block_size is None, "Two BC subfields?"
+            block_size = struct.unpack("<H", subfield_data)[0] + 1
+    assert x_len == extra_len, (x_len, extra_len)
+    assert block_size is not None, "Missing BC, this isn't a BGZF file!"
+    deflate_size = block_size - 1 - extra_len - 19
+    handle.seek(handle.tell() + deflate_size)
+    expected_crc = handle.read(4)
+    expected_size = struct.unpack("<I", handle.read(4))[0]
+    return block_size, expected_size
+
+
+def chunk_file(bam_filename, new_filename, parse_rec):
+    """
+    Create a new BAM file from an existing one.
+
+    :param bam_filename: the name of the original BAM file
+    :param new_filename: the name of the new BAM file
+    :param parse_rec: the information containing where to extract
+    :return:
+    """
+    try:
+        os.remove(new_filename)
+    except Exception as e:
+        pass
+
+    # copy the header from original BAM file to new
+    utils.bytes_from_file(bam_filename, new_filename, 0, parse_rec.header_size)
+
+    if parse_rec.begin_read_offset > 0:
+        # if there are reads before a chunk offset, we need to extract them
+        b = bgzf.BgzfReader(bam_filename)
+        b2 = bgzf.BgzfWriter(new_filename, mode="a")
+        b.seek(parse_rec.begin_read_offset)
+        b2.write(b.read(parse_rec.begin_read_size))
+        b2.close()
+        truncate_bam_file(new_filename)
+
+    # grab bgzf chunks from the OLD BAM file and append to NEW BAM file
+    bytes_from_file_bam(bam_filename, new_filename, parse_rec.file_offset, parse_rec.file_bytes)
+
+    if parse_rec.end_read_offset > 0:
+        # if there are reads after a chunk offset, we need to extract them
+        b = bgzf.BgzfReader(bam_filename)
+        b2 = bgzf.BgzfWriter(new_filename, mode="a")
+        b.seek(parse_rec.end_read_offset)
+        b2.write(b.read(parse_rec.end_read_size))
+        b2.close()
+
+    # fix the bam EOF if needed
+    fix_bam(new_filename)
 
 
