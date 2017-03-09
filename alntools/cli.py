@@ -40,14 +40,15 @@ def split(bam_file, number, directory, verbose):
 @click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
 @click.option('-c', '--chunks', default=0, help="number of chunks to process")
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
+@click.option('--range', is_flag=True, help="generate range file")
 @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def bam2ec(bam_file, ec_file, chunks, targets, directory, verbose):
+def bam2ec(bam_file, ec_file, chunks, targets, directory, range, verbose):
     """
     Convert a BAM file (bam_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
-    alntools.bam2ec(bam_file, ec_file, chunks, targets, directory)
+    alntools.bam2ec(bam_file, ec_file, chunks, targets, directory, range)
 
 
 @cli.command('bam2emase', options_metavar='<options>', short_help='convert a BAM file to APM')

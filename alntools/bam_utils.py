@@ -38,7 +38,7 @@ class MPParams(object):
     #   - idx, vo_start, vo_end
 
     """
-    slots = ['input_file', 'target_file', 'temp_dir', 'process_id', 'data', 'emase']
+    slots = ['input_file', 'target_file', 'temp_dir', 'process_id', 'data', 'emase', 'track_ranges']
 
     def __init__(self):
         self.input_file = None
@@ -47,13 +47,14 @@ class MPParams(object):
         self.process_id = None
         self.data = [] # tuple of (idx, ParseRecord)
         self.emase = False
+        self.track_ranges = False
 
     def __str__(self):
         return "Input: {}\nProcess ID: {}".format(self.input_file, self.process_id)
 
 
 class ConvertResults(object):
-    slots = ['main_targets', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_tids', 'unique_reads', 'init']
+    slots = ['main_targets', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_tids', 'unique_reads', 'init', 'tid_ranges']
 
     def __init__(self):
         self.main_targets = None
@@ -64,6 +65,7 @@ class ConvertResults(object):
         self.unique_tids = None
         self.unique_reads = None
         self.init = False
+        self.tid_ranges = None
 
 
 def get_header_size(bam_filename):
@@ -176,6 +178,7 @@ def process_piece(mp):
 
     same_read_target_counter = 0
 
+    tid_ranges = {}
 
     #pid = os.getpid()
 
@@ -221,6 +224,16 @@ def process_piece(mp):
 
                     valid_alignments += 1
 
+                    if mp.track_ranges:
+                        try:
+                            min_max = tid_ranges[tid]
+                        except KeyError as ke:
+                            min_max = (100000000000, -1)
+
+                        n = min(min_max[0], alignment.reference_start)
+                        x = max(min_max[1], alignment.reference_start)
+
+                        tid_ranges[tid] = (n,x)
 
                     reference_sequence_name = sam_file.getrname(alignment.tid)
                     tid = str(alignment.tid)
@@ -321,6 +334,7 @@ def process_piece(mp):
     ret.target_idx_to_main_target = target_idx_to_main_target
     ret.unique_tids = unique_tids
     ret.unique_reads = unique_reads
+    ret.tid_ranges = tid_ranges
 
     return ret
 
@@ -336,7 +350,7 @@ def wrapper(args):
     return process_piece(*args)
 
 
-def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None):
+def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, gen_range=False):
     """
     """
     start_time = time.time()
@@ -373,6 +387,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         params.input_file = bam_filename
         params.target_file = target_filename
         params.temp_dir = temp_dir
+        params.track_ranges = gen_range
 
         for x, cid in enumerate(temp_chunk_ids):
             params.process_id = str(cid)
@@ -388,6 +403,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     final.target_idx_to_main_target = {}
     final.unique_tids = {}
     final.unique_reads = {}
+    final.tid_ranges = {}
 
     LOG.info("Starting {} processes ...".format(num_processes))
 
@@ -435,6 +451,16 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 else:
                     final.unique_reads[k] = v
 
+            if gen_range:
+                # tid_stats
+                for k, v in result.tid_ranges.iteritems():
+                    if k in final.tid_ranges:
+                        n = final.tid_ranges[k][0]
+                        x = final.tid_ranges[k][1]
+                        final.tid_ranges[k] = (min(v[0], n), max(v[1], x))
+                    else:
+                        final.tid_ranges[k] = v
+
         LOG.debug("CHUNK {}: results combined in {}, total time: {}".format(idx, utils.format_time(temp_time, time.time()),
                  utils.format_time(start_time, time.time())))
 
@@ -447,6 +473,37 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info( "# Haplotypes: {:,}".format(len(final.haplotypes)))
     LOG.info( "# Unique Targets: {:,}".format(len(final.unique_tids)))
     LOG.info( "# Equivalence Classes: {:,}".format(len(final.ec)))
+
+
+
+    if gen_range:
+        # tid_stats
+        with open("{}.stats.tsv".format(output_filename), "w") as fw:
+            fw.write("#\t")
+            fw.write("\t".join(final.haplotypes))
+            fw.write("\n")
+
+            for main_target in final.main_targets:
+                fw.write(main_target)
+                fw.write("\t")
+
+                vals = []
+
+                for haplotype in final.haplotypes:
+                    read_transcript = '{}_{}'.format(main_target, haplotype)
+                    read_transcript_idx = str(alignment_file.gettid(read_transcript))
+
+                    try:
+                        min_max = final.tid_ranges[read_transcript_idx]
+                        if min_max[0] == 100000000000 and min_max[1] == -1:
+                            vals.append('0')
+                        else:
+                            vals.append(str(min_max[1] - min_max[0] + 1))
+                    except KeyError as ke:
+                        vals.append('0')
+
+                fw.write("\t".join(vals))
+                fw.write("\n")
 
 
     try:
