@@ -16,4 +16,4 @@ __logo_text__ = """
 
 """
 
-__all__ = ['app', 'commands', 'util']
+__all__ = ['utils']

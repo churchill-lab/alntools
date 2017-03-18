@@ -7,7 +7,7 @@ import struct
 import sys
 import time
 
-import utils
+from . import utils
 
 from Bio import bgzf
 from emase import AlignmentPropertyMatrix as APM
@@ -50,11 +50,11 @@ class MPParams(object):
         self.track_ranges = False
 
     def __str__(self):
-        return "Input: {}\nProcess ID: {}".format(self.input_file, self.process_id)
+        return "Input: {}\nProcess ID: {}\nData: {}".format(self.input_file, self.process_id, self.data)
 
 
 class ConvertResults(object):
-    slots = ['main_targets', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_tids', 'unique_reads', 'init', 'tid_ranges']
+    slots = ['main_targets', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges']
 
     def __init__(self):
         self.main_targets = None
@@ -62,13 +62,17 @@ class ConvertResults(object):
         self.ec_idx = None
         self.haplotypes = None
         self.target_idx_to_main_target = None
-        self.unique_tids = None
         self.unique_reads = None
         self.init = False
         self.tid_ranges = None
 
 
 def get_header_size(bam_filename):
+    """
+
+    :param bam_filename:
+    :return:
+    """
     #
     # grab header
     #
@@ -96,7 +100,7 @@ def fix_bam(filename):
     data = h.read(len(BAM_HEADER))
 
     if data != BAM_HEADER:
-        sys.exit("File {} is not a BAM file".format(filename))
+        raise Exception("File {} is not a BAM file".format(filename))
 
     # Check if it has the EOF already
     h.seek(size - 28)
@@ -108,6 +112,73 @@ def fix_bam(filename):
         h = open(filename, "ab")
         h.write(BAM_EOF)
         h.close()
+
+
+def validate_bam(filename):
+    if not os.path.isfile(filename):
+        sys.exit("Missing file {}".format(filename))
+
+    size = os.path.getsize(filename)
+    h = open(filename, "rb")
+
+    # Check it looks like a BGZF file
+    # (could still be GZIP'd, in which case the extra block is harmless)
+    data = h.read(len(BAM_HEADER))
+
+    if data != BAM_HEADER:
+        raise Exception("File {} is not a BAM file".format(filename))
+
+    # Check if it has the EOF already
+    h.seek(size - 28)
+    data = h.read(28)
+    h.close()
+
+    if data != BAM_EOF:
+        raise Exception("File {} has bad EOF".format(filename))
+
+
+def chunk_bam_file(bam_filename, new_filename, parse_rec):
+    """
+    Create a new BAM file from an existing one.
+
+    :param str bam_filename: the name of the original BAM file
+    :param str new_filename: the name of the new BAM file
+    :param class:`ParseRecord` parse_rec: the information containing where to extract
+    :return:
+    """
+    try:
+        os.remove(new_filename)
+    except Exception as e:
+        pass
+
+    # copy the header from original BAM file to new
+    utils.bytes_from_file(bam_filename, new_filename, 0, parse_rec.header_size)
+
+    if parse_rec.begin_read_offset > 0:
+        # if there are reads before a chunk offset, we need to extract them
+        b = bgzf.BgzfReader(bam_filename)
+        b2 = bgzf.BgzfWriter(new_filename, mode="a")
+        b.seek(parse_rec.begin_read_offset)
+        b2.write(b.read(parse_rec.begin_read_size))
+        b2.close()
+        truncate_bam_file(new_filename)
+
+    # grab bgzf chunks from the OLD BAM file and append to NEW BAM file
+    bytes_from_file_bam(bam_filename, new_filename, parse_rec.file_offset, parse_rec.file_bytes)
+
+    if parse_rec.end_read_offset > 0:
+        # if there are reads after a chunk offset, we need to extract them
+        b = bgzf.BgzfReader(bam_filename)
+        b2 = bgzf.BgzfWriter(new_filename, mode="a")
+        b.seek(parse_rec.end_read_offset)
+        b2.write(b.read(parse_rec.end_read_size))
+        b2.close()
+
+    # fix the bam EOF if needed
+    fix_bam(new_filename)
+
+
+
 
 def process_piece(mp):
     """
@@ -122,14 +193,7 @@ def process_piece(mp):
     if mp.emase:
         LOG.debug('Process ID: {}, Emase format requested'.format(mp.process_id))
 
-    try:
-        sam_file = pysam.Samfile(mp.input_file, 'rb')
-        if len(sam_file.header) == 0:
-            raise Exception("BAM File has no header information")
-    except:
-        sam_file = pysam.Samfile(mp.input_file, 'r')
-        if len(sam_file.header) == 0:
-            raise Exception("SAM File has no header information")
+    validate_bam(mp.input_file)
 
     main_targets = OrderedDict()
 
@@ -140,7 +204,8 @@ def process_piece(mp):
             sys.exit(-1)
     else:
         tmp = {}
-        for target in sam_file.references:
+        alignment_file = pysam.AlignmentFile(mp.input_file, "rb")
+        for target in alignment_file.references:
             idx_underscore = target.rfind('_')
             main_target = target[:idx_underscore]
             if main_target not in tmp:
@@ -148,27 +213,26 @@ def process_piece(mp):
         main_targets_tmp = sorted(tmp.keys())
         for t in main_targets_tmp:
             main_targets[t] = len(main_targets)
+        alignment_file.close()
 
-    sam_file.close()
+    # reference_id: the reference sequence number as defined in the header
+    # reference_name: name (None if no AlignmentFile is associated)
 
     # ec = equivalence class
-    #      the KEY is a comma separated string of tids
+    #      the KEY is a comma separated string of reference_ids
     #      the VALUE is the number of times this equivalence class has appeared
     ec = OrderedDict()
 
     # ec_idx = lookup to ec
-    #          the KEY is a comma separated string of tids
+    #          the KEY is a comma separated string of reference_ids
     #          the VALUE is a number specifying the insertion order of the KEY value in ec
     ec_idx = {}
 
     # all the haplotypes
     haplotypes = set()
 
-    # a lookup of tids to main_targets (Ensembl IDs)
-    target_idx_to_main_target = {}
-
-    # unique number of tids encountered and the count
-    unique_tids = {}
+    # a lookup of reference_ids to main_targets (Ensembl IDs)
+    reference_id_to_main_target = {}
 
     # unique reads
     unique_reads = {}
@@ -178,16 +242,16 @@ def process_piece(mp):
 
     same_read_target_counter = 0
 
-    tid_ranges = {}
+    ranges = {}
 
     #pid = os.getpid()
 
     all_alignments = 0
     valid_alignments = 0
     ec_key = None
-    tid = None
+    reference_id = None
 
-    target_ids = []
+    reference_ids = []
     temp_name = os.path.join(mp.temp_dir, '_bam2ec.')
 
     try:
@@ -200,23 +264,19 @@ def process_piece(mp):
                 temp_file = "{}{}.bam".format(temp_name, idx)
                 LOG.debug("Process ID: {}, Creating alignment file: {}".format(mp.process_id, temp_file))
                 utils.delete_file(temp_file)
-                chunk_file(mp.input_file, temp_file, parse_record)
+                chunk_bam_file(mp.input_file, temp_file, parse_record)
                 LOG.debug("Process ID: {}, Opening alignment file: {}".format(mp.process_id, temp_file))
 
-                sam_file = pysam.AlignmentFile(temp_file)
-                tell = sam_file.tell()
+                alignment_file = pysam.AlignmentFile(temp_file)
+                tell = alignment_file.tell()
 
-                read_id = None
+                # query template name
+                query_name = None
 
                 while True:
-                    alignment = sam_file.next()
+                    alignment = alignment_file.next()
 
                     all_alignments += 1
-
-                    # reference_sequence_name = Column 3 from file, the Reference NAME (EnsemblID_Haplotype)
-                    # tid = the target id, which is 0 or a positive integer mapping to entries
-                    #       within the sequence dictionary in the header section of a BAM file
-                    # main_target = the Ensembl id of the transcript
 
                     # if alignment.flag == 4 or alignment.is_unmapped:
                     if alignment.is_unmapped:
@@ -224,55 +284,47 @@ def process_piece(mp):
 
                     valid_alignments += 1
 
-                    if mp.track_ranges:
-                        try:
-                            min_max = tid_ranges[tid]
-                        except KeyError as ke:
-                            min_max = (100000000000, -1)
+                    # reference_sequence_name = Column 3 from file, the Reference NAME (EnsemblID_Haplotype)
+                    # reference_id = the reference_id, which is 0 or a positive integer mapping to entries
+                    #       within the sequence dictionary in the header section of a BAM file
+                    # main_target = the Ensembl id of the transcript
 
-                        n = min(min_max[0], alignment.reference_start)
-                        x = max(min_max[1], alignment.reference_start)
-
-                        tid_ranges[tid] = (n,x)
-
-                    reference_sequence_name = sam_file.getrname(alignment.tid)
-                    tid = str(alignment.tid)
+                    reference_sequence_name = alignment.reference_name
+                    reference_id = str(alignment.reference_id)
                     idx_underscore = reference_sequence_name.rfind('_')
                     main_target = reference_sequence_name[:idx_underscore]
 
-                    try:
-                        unique_tids[tid] += 1
-                    except KeyError:
-                        unique_tids[tid] = 1
+                    if mp.track_ranges:
+                        min_max = ranges.get(reference_id, (100000000000, -1))
+                        n = min(min_max[0], alignment.reference_start)
+                        x = max(min_max[1], alignment.reference_start)
+                        ranges[reference_id] = (n,x)
 
                     if mp.target_file:
                         if main_target not in main_targets:
                             LOG.error("Unexpected target found in BAM file: {}".format(main_target))
                             sys.exit(-1)
-                    #else:
-                    #    if main_target not in main_targets:
-                    #        main_targets[main_target] = len(main_targets)
 
-                    target_idx_to_main_target[tid] = main_target
+                    reference_id_to_main_target[reference_id] = main_target
 
                     try:
                         haplotype = reference_sequence_name[idx_underscore+1:]
                         haplotypes.add(haplotype)
                     except:
-                        LOG.info('Unable to parse Haplotype from {}'.format(reference_sequence_name))
+                        LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
                         return
 
-                    # read_id = Column 1 from file, the Query template NAME
-                    if read_id is None:
-                        read_id = alignment.qname
+                    # query_name = Column 1 from file, the Query template NAME
+                    if query_name is None:
+                        query_name = alignment.query_name
 
                     try:
-                        unique_reads[read_id] += 1
+                        unique_reads[query_name] += 1
                     except KeyError:
-                        unique_reads[read_id] = 1
+                        unique_reads[query_name] = 1
 
-                    if read_id != alignment.qname:
-                        ec_key = ','.join(sorted(target_ids))
+                    if query_name != alignment.query_name:
+                        ec_key = ','.join(sorted(reference_ids))
 
                         try:
                             ec[ec_key] += 1
@@ -280,12 +332,12 @@ def process_piece(mp):
                             ec[ec_key] = 1
                             ec_idx[ec_key] = len(ec_idx)
 
-                        read_id = alignment.qname
-                        target_ids = [tid]
+                        query_name = alignment.qname
+                        reference_ids = [reference_id]
                         read_id_switch_counter += 1
                     else:
-                        if tid not in target_ids:
-                            target_ids.append(tid)
+                        if reference_id not in reference_ids:
+                            reference_ids.append(reference_id)
                         else:
                             same_read_target_counter += 1
 
@@ -299,12 +351,12 @@ def process_piece(mp):
 
 
             #LOG.info("{0:,} alignments processed, with {1:,} equivalence classes".format(line_no, len(ec)))
-            if tid not in target_ids:
-                target_ids.append(tid)
+            if reference_id not in reference_ids:
+                reference_ids.append(reference_id)
             else:
                 same_read_target_counter += 1
 
-            ec_key = ','.join(sorted(target_ids))
+            ec_key = ','.join(sorted(reference_ids))
 
             try:
                 ec[ec_key] += 1
@@ -323,7 +375,6 @@ def process_piece(mp):
     LOG.debug("# Reads/Target Duplications: {:,}".format(same_read_target_counter))
     LOG.debug("# Main Targets: {:,}".format(len(main_targets)))
     LOG.debug("# Haplotypes: {:,}".format(len(haplotypes)))
-    LOG.debug("# Unique Targets: {:,}".format(len(unique_tids)))
     LOG.debug("# Equivalence Classes: {:,}".format(len(ec)))
 
     ret = ConvertResults()
@@ -331,10 +382,9 @@ def process_piece(mp):
     ret.ec = ec
     ret.ec_idx = ec_idx
     ret.haplotypes = haplotypes
-    ret.target_idx_to_main_target = target_idx_to_main_target
-    ret.unique_tids = unique_tids
+    ret.target_idx_to_main_target = reference_id_to_main_target
     ret.unique_reads = unique_reads
-    ret.tid_ranges = tid_ranges
+    ret.tid_ranges = ranges
 
     return ret
 
@@ -367,6 +417,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     if not temp_dir:
         temp_dir = os.path.dirname(output_filename)
 
+
     LOG.info("Calculating {:,} chunks".format(num_chunks))
     temp_time = time.time()
     chunks = calculate_chunks(bam_filename, num_chunks)
@@ -382,6 +433,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
     all_params = []
 
+    pid = 0
     for temp_chunk_ids in utils.partition([idx for idx in xrange(num_chunks)], num_processes):
         params = MPParams()
         params.input_file = bam_filename
@@ -390,10 +442,14 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         params.track_ranges = gen_range
 
         for x, cid in enumerate(temp_chunk_ids):
-            params.process_id = str(cid)
+            params.process_id = pid
             params.data.append((cid, chunks[cid]))
 
+        pid += 1
         all_params.append(params)
+        LOG.debug('params = {}'.format(str(params)))
+
+
 
     final = ConvertResults()
     final.ec = OrderedDict()
@@ -401,7 +457,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     final.haplotypes = set()
     final.main_targets = OrderedDict()
     final.target_idx_to_main_target = {}
-    final.unique_tids = {}
     final.unique_reads = {}
     final.tid_ranges = {}
 
@@ -467,14 +522,9 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("All results combined in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
              utils.format_time(start_time, time.time())))
 
-    LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
-    #print "# Reads/Target Duplications: {:,}".format(same_read_target_counter)
-    LOG.info( "# Main Targets: {:,}".format(len(final.main_targets)))
-    LOG.info( "# Haplotypes: {:,}".format(len(final.haplotypes)))
-    LOG.info( "# Unique Targets: {:,}".format(len(final.unique_tids)))
-    LOG.info( "# Equivalence Classes: {:,}".format(len(final.ec)))
-
-
+    LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
+    LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
+    LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
 
     if gen_range:
         # tid_stats
@@ -504,7 +554,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
                 fw.write("\t".join(vals))
                 fw.write("\n")
-
 
     try:
         os.remove(output_filename)
@@ -658,42 +707,43 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             LOG.error("Error: {}".format(str(e)))
 
 
-
-def split_bam(bam_filename, number_files, output_dir=None):
+def split_bam(filename, n, directory=None):
     """
-    Split a BAM file
+    Split a BAM file into ``n`` files.
 
-    :param bam_filename: the name of the BAM file
-    :param number_files: number of files to chunk into
-    :param output_dir: output directory, defaults to bam_filename directory
-    :return:
+    :param str filename: the name of the BAM file
+    :param int n: number of files to chunk into
+    :param str directory: output directory, defaults to ``bam_filename`` directory
+
+    :return: None
     """
     start_time = time.time()
 
-    LOG.debug("BAM File: {}".format(bam_filename))
-    LOG.debug("Number of Files: {}".format(number_files))
+    LOG.debug("BAM File: {}".format(filename))
+    LOG.debug("Number of Files: {}".format(n))
 
-    if not output_dir:
-        output_dir = os.path.dirname(bam_filename)
+    if not directory:
+        directory = os.path.dirname(filename)
 
-    LOG.debug("Output Directory: {}".format(output_dir))
+    LOG.debug("Output Directory: {}".format(directory))
 
-    bam_basename = os.path.basename(bam_filename)
+    bam_basename = os.path.basename(filename)
     bam_prefixname, bam_extension = os.path.splitext(bam_basename)
-    bam_output_temp = os.path.join(output_dir, bam_prefixname)
+    bam_output_temp = os.path.join(directory, bam_prefixname)
 
-    LOG.info("Calculating {:,} chunks...".format(number_files))
+    LOG.info("Calculating {:,} chunks...".format(n))
     temp_time = time.time()
-    chunks = calculate_chunks(bam_filename, number_files)
+    chunks = calculate_chunks(filename, n)
     LOG.info("{:,} chunks calculated in {}, total time: {}".format(len(chunks),
                                                                    utils.format_time(temp_time, time.time()),
                                                                    utils.format_time(start_time, time.time())))
 
     for idx, chunk in enumerate(chunks):
         # must create the file
+        LOG.debug(chunk)
         new_file = "{}_{}{}".format(bam_output_temp, idx, bam_extension)
         LOG.debug("Creating alignment file: {}".format(new_file))
-        chunk_file(bam_filename, new_file, chunk)
+        chunk_bam_file(filename, new_file, chunk)
 
     LOG.info("{:,} files created in {}, total time: {}".format(len(chunks),
                                                                utils.format_time(temp_time, time.time()),
@@ -733,7 +783,7 @@ def bytes_from_file_bam(read_filename, write_filename, offset=0, bytes_size=-1):
                 #    fw.seek(size)
                 fw.write(data)
     except Exception as e:
-        print 'ERROR : ', str(e)
+        LOG.error('ERROR: {}'.format(str(e)))
 
 
 
@@ -759,26 +809,24 @@ fhout.close()
 """
 
 
-"""
-
-
-
-
-
-"""
-
-
-
 def calculate_chunks(filename, num_chunks):
     """
     Calculate the boundaries in the BAM file and partition into chunks.
 
-    :param filename: name of the BAM file
-    :param num_chunks: number of chunks to partition the boundaries into
+    :param str filename: name of the BAM file
+    :param int num_chunks: number of chunks to partition the boundaries into
     :return: a list of tuples containing the start and end boundaries
     """
+    if num_chunks <= 0:
+        raise ValueError("The number of chunks to calculate should be >= 1")
+
     if num_chunks == 1:
-        return [[0, -1]]
+        aln_file = pysam.AlignmentFile(filename)
+        header_size = bgzf.split_virtual_offset(aln_file.tell())[0]
+        aln_file.close()
+
+        pr = ParseRecord(header_size, 0, 0, header_size, -1, 0, 0)
+        return [pr]
 
     try:
         f = open(filename, 'r')
@@ -794,7 +842,7 @@ def calculate_chunks(filename, num_chunks):
             decompressed_lengths.append(values[3])
 
             if i % 10000 == 0:
-                LOG.debug('Chunk {}'.format(i))
+                LOG.debug('Block {}'.format(i))
             i = i + 1
 
         # partition the starts into manageable chunks
@@ -855,7 +903,7 @@ def calculate_chunks(filename, num_chunks):
                 # all others
                 if offset[1] == 0:
                     # bgzf boundary
-                    print '****************HUH'
+                    LOG.fatal('****************HUH')
                     return
 
                 begin_read_offset = bgzf.make_virtual_offset(partitioned_offsets[i][0], partitioned_offsets[i][1])
@@ -872,7 +920,7 @@ def calculate_chunks(filename, num_chunks):
         return params
 
     except Exception as e:
-        print 'calculate_chunks error: {}'.format(str(e))
+        LOG.debug('calculate_chunks error: {}'.format(str(e)))
 
 
 
@@ -936,44 +984,8 @@ def _quick_bgzf_load(handle):
     return block_size, expected_size
 
 
-def chunk_file(bam_filename, new_filename, parse_rec):
-    """
-    Create a new BAM file from an existing one.
-
-    :param bam_filename: the name of the original BAM file
-    :param new_filename: the name of the new BAM file
-    :param parse_rec: the information containing where to extract
-    :return:
-    """
-    try:
-        os.remove(new_filename)
-    except Exception as e:
-        pass
-
-    # copy the header from original BAM file to new
-    utils.bytes_from_file(bam_filename, new_filename, 0, parse_rec.header_size)
-
-    if parse_rec.begin_read_offset > 0:
-        # if there are reads before a chunk offset, we need to extract them
-        b = bgzf.BgzfReader(bam_filename)
-        b2 = bgzf.BgzfWriter(new_filename, mode="a")
-        b.seek(parse_rec.begin_read_offset)
-        b2.write(b.read(parse_rec.begin_read_size))
-        b2.close()
-        truncate_bam_file(new_filename)
-
-    # grab bgzf chunks from the OLD BAM file and append to NEW BAM file
-    bytes_from_file_bam(bam_filename, new_filename, parse_rec.file_offset, parse_rec.file_bytes)
-
-    if parse_rec.end_read_offset > 0:
-        # if there are reads after a chunk offset, we need to extract them
-        b = bgzf.BgzfReader(bam_filename)
-        b2 = bgzf.BgzfWriter(new_filename, mode="a")
-        b.seek(parse_rec.end_read_offset)
-        b2.write(b.read(parse_rec.end_read_size))
-        b2.close()
-
-    # fix the bam EOF if needed
-    fix_bam(new_filename)
 
 
+def generate_bam_ranges(input_files):
+    for i in input_files:
+        print(i)
