@@ -820,10 +820,12 @@ def calculate_chunks(filename, num_chunks):
     if num_chunks <= 0:
         raise ValueError("The number of chunks to calculate should be >= 1")
 
+    header_size = get_header_size(filename)
+
     if num_chunks == 1:
-        aln_file = pysam.AlignmentFile(filename)
-        header_size = bgzf.split_virtual_offset(aln_file.tell())[0]
-        aln_file.close()
+        #aln_file = pysam.AlignmentFile(filename)
+        #header_size = bgzf.split_virtual_offset(aln_file.tell())[0]
+        #aln_file.close()
 
         pr = ParseRecord(header_size, 0, 0, header_size, -1, 0, 0)
         return [pr]
@@ -837,13 +839,18 @@ def calculate_chunks(filename, num_chunks):
 
         for values in FastBgzfBlocks(f):
         #for values in bgzf.BgzfBlocks(f):
+            # make sure that the first block is greater than header size
+            # we don't want to split mid header even though this should only happen
+            # on large values for num_chunks
+            if header_size > values[0]:
+                continue
 
             block_offsets.append(values[0])
             decompressed_lengths.append(values[3])
 
-            if i % 10000 == 0:
+            if i % 50000 == 0:
                 LOG.debug('Block {}'.format(i))
-            i = i + 1
+            i += 1
 
         # partition the starts into manageable chunks
         div, mod = divmod(len(block_offsets), num_chunks)
