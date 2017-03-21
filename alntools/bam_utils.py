@@ -28,7 +28,7 @@ parse_fields = ["header_size", "begin_read_offset", "begin_read_size", "file_off
 ParseRecord = namedtuple("ParseRecord", parse_fields)
 
 
-class MPParams(object):
+class ConvertParams(object):
     """
     # each core needs
     # - name of alignment file
@@ -63,6 +63,38 @@ class ConvertResults(object):
         self.haplotypes = None
         self.target_idx_to_main_target = None
         self.unique_reads = None
+        self.init = False
+        self.tid_ranges = None
+
+
+class RangeParams(object):
+    """
+    # each core needs
+    # - name of alignment file
+    # - header size
+    # - target file
+    # - list of files to create and work on
+    #   - idx, vo_start, vo_end
+
+    """
+    slots = ['input_file', 'target_file', 'temp_dir', 'process_id']
+
+    def __init__(self):
+        self.input_file = None
+        self.target_file = None
+        self.temp_dir = None
+        self.process_id = None
+
+    def __str__(self):
+        return "Input: {}\nProcess ID: {}".format(self.input_file, self.process_id)
+
+
+class RangeResults(object):
+    slots = ['main_targets', 'haplotypes', 'init', 'tid_ranges']
+
+    def __init__(self):
+        self.main_targets = None
+        self.haplotypes = None
         self.init = False
         self.tid_ranges = None
 
@@ -180,31 +212,31 @@ def chunk_bam_file(bam_filename, new_filename, parse_rec):
 
 
 
-def process_piece(mp):
+def process_convert_bam(cp):
     """
 
     :return:
     """
-    LOG.debug('Process ID: {}, Input File: {}'.format(mp.process_id, mp.input_file))
+    LOG.debug('Process ID: {}, Input File: {}'.format(cp.process_id, cp.input_file))
 
-    if mp.target_file:
-        LOG.debug('Process ID: {}, Target File: {}'.format(mp.process_id, mp.target_file))
+    if cp.target_file:
+        LOG.debug('Process ID: {}, Target File: {}'.format(cp.process_id, cp.target_file))
 
-    if mp.emase:
-        LOG.debug('Process ID: {}, Emase format requested'.format(mp.process_id))
+    if cp.emase:
+        LOG.debug('Process ID: {}, Emase format requested'.format(cp.process_id))
 
-    validate_bam(mp.input_file)
+    validate_bam(cp.input_file)
 
     main_targets = OrderedDict()
 
-    if mp.target_file:
-        main_targets = utils.parse_targets(mp.target_file)
+    if cp.target_file:
+        main_targets = utils.parse_targets(cp.target_file)
         if len(main_targets) == 0:
             LOG.error("Unable to parse target file")
             sys.exit(-1)
     else:
         tmp = {}
-        alignment_file = pysam.AlignmentFile(mp.input_file, "rb")
+        alignment_file = pysam.AlignmentFile(cp.input_file, "rb")
         for target in alignment_file.references:
             idx_underscore = target.rfind('_')
             main_target = target[:idx_underscore]
@@ -252,20 +284,20 @@ def process_piece(mp):
     reference_id = None
 
     reference_ids = []
-    temp_name = os.path.join(mp.temp_dir, '_bam2ec.')
+    temp_name = os.path.join(cp.temp_dir, '_bam2ec.')
 
     try:
-        for file_info_data in mp.data:
+        for file_info_data in cp.data:
             try:
                 idx = file_info_data[0]
                 parse_record = file_info_data[1]
 
                 # must create the file
                 temp_file = "{}{}.bam".format(temp_name, idx)
-                LOG.debug("Process ID: {}, Creating alignment file: {}".format(mp.process_id, temp_file))
+                LOG.debug("Process ID: {}, Creating alignment file: {}".format(cp.process_id, temp_file))
                 utils.delete_file(temp_file)
-                chunk_bam_file(mp.input_file, temp_file, parse_record)
-                LOG.debug("Process ID: {}, Opening alignment file: {}".format(mp.process_id, temp_file))
+                chunk_bam_file(cp.input_file, temp_file, parse_record)
+                LOG.debug("Process ID: {}, Opening alignment file: {}".format(cp.process_id, temp_file))
 
                 alignment_file = pysam.AlignmentFile(temp_file)
                 tell = alignment_file.tell()
@@ -294,13 +326,13 @@ def process_piece(mp):
                     idx_underscore = reference_sequence_name.rfind('_')
                     main_target = reference_sequence_name[:idx_underscore]
 
-                    if mp.track_ranges:
+                    if cp.track_ranges:
                         min_max = ranges.get(reference_id, (100000000000, -1))
                         n = min(min_max[0], alignment.reference_start)
                         x = max(min_max[1], alignment.reference_start)
                         ranges[reference_id] = (n,x)
 
-                    if mp.target_file:
+                    if cp.target_file:
                         if main_target not in main_targets:
                             LOG.error("Unexpected target found in BAM file: {}".format(main_target))
                             sys.exit(-1)
@@ -342,12 +374,12 @@ def process_piece(mp):
                             same_read_target_counter += 1
 
                     if all_alignments % 100000 == 0:
-                        LOG.debug("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(mp.process_id, temp_file, valid_alignments, all_alignments, len(ec)))
+                        LOG.debug("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(cp.process_id, temp_file, valid_alignments, all_alignments, len(ec)))
 
             except StopIteration:
                 LOG.info(
                     "DONE Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(
-                        mp.process_id, temp_file, valid_alignments, all_alignments, len(ec)))
+                        cp.process_id, temp_file, valid_alignments, all_alignments, len(ec)))
 
 
             #LOG.info("{0:,} alignments processed, with {1:,} equivalence classes".format(line_no, len(ec)))
@@ -389,7 +421,125 @@ def process_piece(mp):
     return ret
 
 
-def wrapper(args):
+
+
+
+def process_range_bam(rp):
+    """
+
+    :return:
+    """
+    LOG.debug('Process ID: {}, Input File: {}'.format(rp.process_id, rp.input_file))
+
+    if rp.target_file:
+        LOG.debug('Process ID: {}, Target File: {}'.format(rp.process_id, rp.target_file))
+
+    validate_bam(rp.input_file)
+
+    main_targets = OrderedDict()
+
+    if rp.target_file:
+        main_targets = utils.parse_targets(rp.target_file)
+        if len(main_targets) == 0:
+            LOG.error("Unable to parse target file")
+            sys.exit(-1)
+    else:
+        tmp = {}
+        alignment_file = pysam.AlignmentFile(rp.input_file, "rb")
+        for target in alignment_file.references:
+            idx_underscore = target.rfind('_')
+            main_target = target[:idx_underscore]
+            if main_target not in tmp:
+                tmp[main_target] = main_target
+        main_targets_tmp = sorted(tmp.keys())
+        for t in main_targets_tmp:
+            main_targets[t] = len(main_targets)
+        alignment_file.close()
+
+
+
+    # reference_id: the reference sequence number as defined in the header
+    # reference_name: name (None if no AlignmentFile is associated)
+
+    # all the haplotypes
+    haplotypes = set()
+
+    # a lookup of reference_ids to main_targets (Ensembl IDs)
+    reference_id_to_main_target = {}
+
+    ranges = {}
+
+    all_alignments = 0
+    valid_alignments = 0
+    reference_id = None
+    #temp_name = os.path.join(rp.temp_dir, '_bam2ec.')
+
+    try:
+        alignment_file = pysam.AlignmentFile(rp.input_file)
+
+        while True:
+            alignment = alignment_file.next()
+
+            all_alignments += 1
+
+            # if alignment.flag == 4 or alignment.is_unmapped:
+            if alignment.is_unmapped:
+                continue
+
+            valid_alignments += 1
+
+            # reference_sequence_name = Column 3 from file, the Reference NAME (EnsemblID_Haplotype)
+            # reference_id = the reference_id, which is 0 or a positive integer mapping to entries
+            #       within the sequence dictionary in the header section of a BAM file
+            # main_target = the Ensembl id of the transcript
+
+            reference_sequence_name = alignment.reference_name
+            reference_id = str(alignment.reference_id)
+            idx_underscore = reference_sequence_name.rfind('_')
+            main_target = reference_sequence_name[:idx_underscore]
+
+            min_max = ranges.get(reference_id, (100000000000, -1))
+            n = min(min_max[0], alignment.reference_start)
+            x = max(min_max[1], alignment.reference_start)
+            ranges[reference_id] = (n,x)
+
+            if rp.target_file:
+                if main_target not in main_targets:
+                    LOG.error("Unexpected target found in BAM file: {}".format(main_target))
+                    sys.exit(-1)
+
+            try:
+                haplotype = reference_sequence_name[idx_underscore+1:]
+                haplotypes.add(haplotype)
+            except:
+                LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
+                return
+
+            if all_alignments % 100000 == 0:
+                LOG.debug("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}".format(rp.process_id, rp.input_file, valid_alignments, all_alignments))
+
+    except StopIteration:
+        LOG.info(
+            "DONE Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}".format(
+                rp.process_id, rp.input_file, valid_alignments, all_alignments))
+    except Exception as e:
+        print('WHOA'*100)
+        print(e)
+
+    haplotypes = sorted(list(haplotypes))
+
+    LOG.debug("# Main Targets: {:,}".format(len(main_targets)))
+    LOG.debug("# Haplotypes: {:,}".format(len(haplotypes)))
+
+    ret = RangeResults()
+    ret.main_targets = main_targets
+    ret.haplotypes = haplotypes
+    ret.tid_ranges = ranges
+
+    return ret
+
+
+def wrapper_convert(args):
     """
     Simple wrapper, useful for debugging.
 
@@ -397,10 +547,21 @@ def wrapper(args):
     :return: the same as process_piece
     """
     #print str(args)
-    return process_piece(*args)
+    return process_convert_bam(*args)
 
 
-def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, gen_range=False):
+def wrapper_range(args):
+    """
+    Simple wrapper, useful for debugging.
+
+    :param args: the arguments to process_piece
+    :return: the same as process_piece
+    """
+    #print(str(args))
+    return process_range_bam(*args)
+
+
+def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, range_filename=None):
     """
     """
     start_time = time.time()
@@ -435,11 +596,11 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
     pid = 0
     for temp_chunk_ids in utils.partition([idx for idx in xrange(num_chunks)], num_processes):
-        params = MPParams()
+        params = ConvertParams()
         params.input_file = bam_filename
         params.target_file = target_filename
         params.temp_dir = temp_dir
-        params.track_ranges = gen_range
+        params.track_ranges = (range_filename != None)
 
         for x, cid in enumerate(temp_chunk_ids):
             params.process_id = pid
@@ -448,7 +609,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         pid += 1
         all_params.append(params)
         LOG.debug('params = {}'.format(str(params)))
-
 
 
     final = ConvertResults()
@@ -465,7 +625,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     temp_time = time.time()
     args = zip(all_params)
     pool = multiprocessing.Pool(num_processes)
-    results = pool.map(wrapper, args)
+    results = pool.map(wrapper_convert, args)
 
     LOG.info("All processes done in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
@@ -506,7 +666,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 else:
                     final.unique_reads[k] = v
 
-            if gen_range:
+            if range_filename:
                 # tid_stats
                 for k, v in result.tid_ranges.iteritems():
                     if k in final.tid_ranges:
@@ -526,9 +686,9 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
 
-    if gen_range:
+    if range_filename:
         # tid_stats
-        with open("{}.stats.tsv".format(output_filename), "w") as fw:
+        with open(range_filename, "w") as fw:
             fw.write("#\t")
             fw.write("\t".join(final.haplotypes))
             fw.write("\n")
@@ -715,7 +875,7 @@ def split_bam(filename, n, directory=None):
     :param int n: number of files to chunk into
     :param str directory: output directory, defaults to ``bam_filename`` directory
 
-    :return: None
+    :return: names of the files
     """
     start_time = time.time()
 
@@ -738,16 +898,21 @@ def split_bam(filename, n, directory=None):
                                                                    utils.format_time(temp_time, time.time()),
                                                                    utils.format_time(start_time, time.time())))
 
+    file_names = []
+
     for idx, chunk in enumerate(chunks):
         # must create the file
         LOG.debug(chunk)
         new_file = "{}_{}{}".format(bam_output_temp, idx, bam_extension)
+        file_names.append(new_file)
         LOG.debug("Creating alignment file: {}".format(new_file))
         chunk_bam_file(filename, new_file, chunk)
 
     LOG.info("{:,} files created in {}, total time: {}".format(len(chunks),
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
+
+    return file_names
 
 
 def bytes_from_file_bam(read_filename, write_filename, offset=0, bytes_size=-1):
@@ -993,6 +1158,175 @@ def _quick_bgzf_load(handle):
 
 
 
-def generate_bam_ranges(input_files):
-    for i in input_files:
-        print(i)
+def generate_bam_ranges(input_files, range_filename, target_filename=None, temp_dir=None):
+    """
+    we might want to check if the number of files is less than the number of cpus
+
+    if that's the case, we can split the input files and process in threads
+
+    :param input_files:
+    :param temp_dirs:
+    :return:
+    """
+    start_time = time.time()
+
+    num_processes = multiprocessing.cpu_count()
+
+    """
+    if len(input_files) < num_processes:
+        # split files, we could probably do better but...
+
+        files = []
+        for filename in input_files:
+            size = os.path.getsize(filename)
+            files.append((size, filename))
+
+        while len(files) < num_processes:
+            print('len(files) < num_processes')
+            print('{} < {}'.format(len(files), num_processes))
+            # sort files by size descending
+            input_files = sorted(files, key=lambda x: x[0], reverse=True)
+            print(' splitting')
+            new_names = split_bam(input_files[0][1], 2)
+
+            files = input_files[1:]
+            files.append((os.path.getsize(new_names[0]), new_names[0]))
+            files.append((os.path.getsize(new_names[1]), new_names[1]))
+
+        input_files = files
+
+    for f in input_files:
+        print(f)
+
+    """
+
+    if not temp_dir:
+        temp_dir = os.getcwd()
+
+    temp_files = []
+
+    # sort files based upon size, take the largest and split it
+    files = []
+    for filename in input_files:
+        size = os.path.getsize(filename)
+        files.append((size, filename))
+
+    if len(input_files) < num_processes:
+        LOG.info("Preparing files...")
+        temp_time = time.time()
+
+        input_files = sorted(files, key=lambda x: x[0], reverse=True)
+        new_names = split_bam(input_files[0][1], num_processes - len(files) + 1, directory=temp_dir)
+
+        files = input_files[1:]
+        for f in new_names:
+            files.append((os.path.getsize(f), f))
+            temp_files.append(f)
+
+        LOG.info("{:,} files prepared in {}, total time: {}".format(len(input_files),
+                                                                   utils.format_time(temp_time, time.time()),
+                                                                   utils.format_time(start_time, time.time())))
+    input_files = files
+
+    all_params = []
+    for i, f in enumerate(input_files):
+        params = RangeParams()
+        params.process_id = i
+        params.input_file = f[1]
+        print (params.input_file)
+
+        params.target_file = target_filename
+        params.temp_dir = temp_dir
+        all_params.append(params)
+
+    LOG.info("Starting {} processes ...".format(num_processes))
+
+    temp_time = time.time()
+    args = zip(all_params)
+    pool = multiprocessing.Pool(num_processes)
+    results = pool.map(wrapper_range, args)
+
+    LOG.info("All processes done in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                               utils.format_time(start_time, time.time())))
+
+    LOG.info("Combining {} results ...".format(len(results)))
+    temp_time = time.time()
+
+    final = ConvertResults()
+    final.haplotypes = set()
+    final.main_targets = OrderedDict()
+    final.tid_ranges = {}
+
+    alignment_file = pysam.AlignmentFile(input_files[0][1])
+
+    # parse results
+    for idx, result in enumerate(results):
+        if not final.init:
+            final = result
+            final.init = True
+        else:
+            # assuming haplotypes and main_targets are same
+            if final.main_targets != result.main_targets:
+                raise ValueError('Error: main targets do not match')
+
+            if final.haplotypes != result.haplotypes:
+                raise ValueError('Error: haplotypes do not match')
+
+            # tid_stats
+            for k, v in result.tid_ranges.iteritems():
+                if k in final.tid_ranges:
+                    n = final.tid_ranges[k][0]
+                    x = final.tid_ranges[k][1]
+                    final.tid_ranges[k] = (min(v[0], n), max(v[1], x))
+                else:
+                    final.tid_ranges[k] = v
+
+        LOG.debug("CHUNK {}: results combined in {}, total time: {}".format(idx, utils.format_time(temp_time, time.time()),
+                 utils.format_time(start_time, time.time())))
+
+    LOG.info("All results combined in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+             utils.format_time(start_time, time.time())))
+
+    LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
+    LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
+
+    if temp_files:
+        LOG.info("Cleaning up temporary files...")
+
+        for t in temp_files:
+            utils.delete_file(t)
+
+    LOG.info("Generating range file {} ...".format(range_filename))
+
+    temp_time = time.time()
+
+    with open(range_filename, "w") as fw:
+        fw.write("#\t")
+        fw.write("\t".join(final.haplotypes))
+        fw.write("\n")
+
+        for main_target in final.main_targets:
+            fw.write(main_target)
+            fw.write("\t")
+
+            vals = []
+
+            for haplotype in final.haplotypes:
+                read_transcript = '{}_{}'.format(main_target, haplotype)
+                read_transcript_idx = str(alignment_file.gettid(read_transcript))
+
+                try:
+                    min_max = final.tid_ranges[read_transcript_idx]
+                    if min_max[0] == 100000000000 and min_max[1] == -1:
+                        vals.append('0')
+                    else:
+                        vals.append(str(min_max[1] - min_max[0] + 1))
+                except KeyError as ke:
+                    vals.append('0')
+
+            fw.write("\t".join(vals))
+            fw.write("\n")
+
+    LOG.info("{} created in {}, total time: {}".format(range_filename,
+                                                               utils.format_time(temp_time, time.time()),
+                                                               utils.format_time(start_time, time.time())))

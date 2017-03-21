@@ -365,5 +365,6 @@ def bam2emase(bam_filename, emase_filename, num_chunks=0, target_filename=None, 
 def split_bam(bam_filename, num_chunks, directory=None):
     bam_utils.split_bam(bam_filename, num_chunks, directory)
 
-def generate_bam_ranges(input_files):
-    bam_utils.generate_bam_ranges(input_files)
+
+def generate_bam_ranges(input_files, range_filename, target_filename=None, temp_dir=None):
+    bam_utils.generate_bam_ranges(input_files, range_filename, target_filename, temp_dir)
