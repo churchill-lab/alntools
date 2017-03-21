@@ -354,8 +354,8 @@ def ec2emase(file_in, file_out):
                                                    utils.format_time(start_time, time.time())))
 
 
-def bam2ec(bam_filename, ec_filename, num_chunks=0, target_filename=None, temp_dir=None, gen_range=False):
-    bam_utils.convert(bam_filename, ec_filename, num_chunks=num_chunks, target_filename=target_filename, emase=False, temp_dir=temp_dir, gen_range=gen_range)
+def bam2ec(bam_filename, ec_filename, num_chunks=0, target_filename=None, temp_dir=None, range_filename=None):
+    bam_utils.convert(bam_filename, ec_filename, num_chunks=num_chunks, target_filename=target_filename, emase=False, temp_dir=temp_dir, range_filename=range_filename)
 
 
 def bam2emase(bam_filename, emase_filename, num_chunks=0, target_filename=None, temp_dir=None):
