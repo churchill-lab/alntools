@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
-import time
 import click
 
 from . import alntools
@@ -40,7 +39,7 @@ def split(bam_file, number, directory, verbose):
 @click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
 @click.option('-c', '--chunks', default=0, help="number of chunks to process")
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
-@click.option('--range', is_flag=True, help="generate range file")
+@click.option('--range', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True), help="range file")
 @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
 def bam2ec(bam_file, ec_file, chunks, targets, directory, range, verbose):
@@ -89,6 +88,20 @@ def ec2emase(ec_file, emase_file, verbose):
     utils.configure_logging(verbose)
     alntools.ec2emase(ec_file, emase_file)
 
+
+@cli.command('range', options_metavar='<options>', short_help='test')
+@click.argument('input', nargs=-1, type=click.Path(resolve_path=True, dir_okay=True))
+@click.argument('range_file', metavar='range_file', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True))
+@click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
+@click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def range(input, range_file, targets, directory, verbose):
+    """
+    Create range file for specified BAM files
+    """
+    utils.configure_logging(verbose)
+    files = utils.get_bam_files(input)
+    alntools.generate_bam_ranges(files, range_file, targets, directory)
 
 if __name__ == '__main__':
     cli()

@@ -23,19 +23,25 @@ logging.basicConfig(format='[alntools] [%(asctime)s] %(message)s', datefmt='%m/%
 
 def get_logger():
     """
-    Get the logger.
+    Get the :class:`logging.Logger`.
 
-    :return: logger
+    :return: :class:`logging.Logger`
     """
     return logging.getLogger(__name__)
 
 
 def configure_logging(level):
     """
-    Configure the logger.
+    Configure the :class:`Logger`.
 
-    :param level: 0 = WARNING, 1 = INFO, 2 = DEBUG
-    :return: Nothing
+    - 0 = WARNING
+    - 1 = INFO
+    - 2 = DEBUG
+
+    :func:`get_logger`.
+
+    :param int level: logging level
+    :return: None
     """
     if level == 0:
         get_logger().setLevel(logging.WARN)
@@ -47,7 +53,7 @@ def configure_logging(level):
 
 def format_time(start, end):
     """
-    Format length of time between start and end.
+    Format length of time between ``start`` and ``end``.
 
     :param start: the start time
     :param end: the end time
@@ -170,14 +176,56 @@ def delete_file(file_name):
         pass
 
 
-def truncate_file(fname, bytes_from_end):
+def truncate_file(file_name, bytes_from_end):
     """
-
-    :param fname:
-    :param bytes_from_end:
-    :return:
+    :param str file_name: name of the file
+    :param int bytes_from_end: number of bytes from the end of the file
+    :return: None
     """
-    f = open(fname, 'r+')
+    f = open(file_name, 'r+')
     f.seek(-1 * bytes_from_end, os.SEEK_END)
     f.truncate()
     f.close()
+
+
+def get_bam_files(files):
+    """
+    Get all BAM files in tuple of files
+
+    :param files: a tuple of files or directories
+    :return: a list of files in directories
+    """
+    list_files = []
+
+    for file in files:
+        if os.path.isfile(file):
+            list_files.append(file)
+        elif os.path.isdir(file):
+            list_files.extend(get_files_in_dir(file, ['bam']))
+
+    return list_files
+
+
+def get_files_in_dir(directory, file_extensions=None):
+    """
+    Get a list of all files in ``directory``.
+
+    :param str directory: a directory
+    :param list file_extensions: a list of file extensions to match, None means all
+
+    :return: a list of all files
+    """
+    matches = []
+
+    for root, directories, filenames in os.walk(directory):
+        for filename in filenames:
+            if file_extensions:
+                for ext in file_extensions:
+                    if filename.lower().endswith(ext.lower()):
+                        matches.append(os.path.join(root, filename))
+            else:
+                matches.append(os.path.join(root, filename))
+        # for directory in directories:
+        #    print(os.path.join(root, directory))
+
+    return matches
