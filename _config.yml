@@ -1,0 +1,17 @@
+# Setup
+title:        alntools
+tagline:      Preprocessing NGS read alignment files into a binary alignment incident matrix
+baseurl:      ""
+paginate:     1
+
+# About/contact
+author:
+  name:       Kwangbom "KB" Choi, Ph.D.
+  url:        https://www.jax.org/research-and-faculty/faculty/research-scientists/kb-choi
+
+# Gems
+gems:
+  - jekyll-paginate
+
+#Others
+markdown: kramdown

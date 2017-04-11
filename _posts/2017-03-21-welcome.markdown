@@ -1,0 +1,11 @@
+---
+layout: default
+title:  "Welcome to alntools!"
+date:   2017-03-21 08:50:00
+categories: main
+---
+
+
+alntools is now released on github. The full package documentation is available at [https://alntools.readthedocs.io][1].
+
+[1]: https://alntools.readthedocs.io
