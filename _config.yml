@@ -1,6 +1,6 @@
 # Setup
 title:        alntools
-tagline:      Preprocessing NGS read alignment files into a binary alignment incident matrix
+tagline:      Preprocessing NGS read alignment files into a binary alignment incidence matrix
 baseurl:      ""
 paginate:     1
 

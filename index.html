@@ -3,26 +3,90 @@ layout: default
 title: {{ site.name }}
 ---
 
-<p>(General description about the package)</p>
+<p><strong>alntools</strong> processes next-generation sequencing read alignments into a sparse compressed incidence matrix (a.k.a. an Equivalence Class) and stores it in a pre-defined <a href="#output">binary format</a>.</p>
 
 <h2>
 <a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h2>
 
-<pre>
-  <code>
+<p><strong>Note:</strong> Although alntools is available at PyPI for <code>pip install</code> or <code>easy_install</code>, we highly recommend using <a href="https://www.continuum.io/downloads">Anaconda distribution</a> of python to install all the dependencies without issues. We are going to post alntools on <a href="https://anaconda.org/kbchoi">Anaconda Cloud</a>, so add the following channels if you have not already:</p>
 
-  </code>
+<pre>
+  <code>$ conda config --add channels r
+  $ conda config --add channels bioconda</code>
 </pre>
+
+<p>To avoid conflicts among dependencies, we also highly recommend using conda virtual environment and install alntools in it:</p>
+
+<pre>
+  <code>$ git clone https://github.com/churchill-lab/alntools
+  $ cd alntools
+  $ conda create -n alntools python=2
+  $ source activate alntools
+  (alntools) $ conda install -c kbchoi emase
+  (alntools) $ conda install future
+  (alntools) $ python setup.py install</code>
+</pre>
+
+<p>That's all! Now alntools is ready. Once you are done using alntools, you can go out from alntools virtual environment anytime:</p>
+
+<pre><code>(alntools) $ source deactivate
+</code></pre>
 
 <h2>
 <a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h2>
 
 <pre>
-  <code>
+  <code>$ alntools -h
+  Usage: alntools [OPTIONS] COMMAND [ARGS]...
 
-  </code>
+    alntools
+
+    Simple tools for alignment
+
+  Commands:
+    bam2ec     convert a BAM file to EC
+    bam2emase  convert a BAM file to APM
+    ec2emase   convert an EC file to EMASE
+    emase2ec   convert an EMASE file to EC
+    range      test
+    split      split a BAM file into many
+
+  Options:
+    --version   Show the version and exit.
+    -h, --help  Show this message and exit.</code>
 </pre>
 
+<h2>
+<a id="output" class="anchor" href="#output" aria-hidden="true"><span class="octicon octicon-link"></span></a>Output format</h2>
+
+<table>
+<thead>
+<tr>
+<th>Artist</th>
+<th>Album</th>
+<th>Year</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Michael Jackson</td>
+<td>Thriller</td>
+<td>1982</td>
+</tr>
+<tr>
+<td>Prince</td>
+<td>Purple Rain</td>
+<td>1984</td>
+</tr>
+<tr>
+<td>Beastie Boys</td>
+<td>License to Ill</td>
+<td>1986</td>
+</tr>
+</tbody>
+</table>
+
+<br>
 <div id="home">
   <h2>Announcements</h2>
   <ul class="posts">
