@@ -56,35 +56,178 @@ title: {{ site.name }}
     -h, --help  Show this message and exit.</code>
 </pre>
 
+<ul><li><strong>bam2ec</strong></li></ul>
+<p><code>bam2ec</code> processes read alignments and create equivalence classes. Currently only BAM format is supported.</p>
+<pre>
+<code>$ alntools bam2ec -h
+Usage: alntools bam2ec &lt;options&gt; bam_file ec_file
+
+  Convert a BAM file (bam_file) to an EC file (ec_file).
+
+Options:
+  -c, --chunks INTEGER       number of chunks to process
+  -d, --directory DIRECTORY  temp directory
+  --range PATH               range file
+  -t, --targets FILE         target file
+  -v, --verbose              the more times listed, the more output
+  -h, --help                 Show this message and exit.</code>
+</pre>
+
+<ul><li>bam2emase</li></ul>
+<ul><li>ec2emase</li></ul>
+<ul><li>emase2ec</li></ul>
+<ul><li>split</li></ul>
+<ul><li>range</li></ul>
+
+
+
 <h2>
 <a id="output" class="anchor" href="#output" aria-hidden="true"><span class="octicon octicon-link"></span></a>Output format</h2>
+
+<h4>Header part</h4>
 
 <table>
 <thead>
 <tr>
-<th>Artist</th>
-<th>Album</th>
-<th>Year</th>
+<th>Name</th>
+<th>Type</th>
+<th>Note</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td>Michael Jackson</td>
-<td>Thriller</td>
-<td>1982</td>
+<td>Format</td>
+<td>int32</td>
+<td>0 for reads, 1 for equivalence classes</td>
 </tr>
 <tr>
-<td>Prince</td>
-<td>Purple Rain</td>
-<td>1984</td>
+<td># of targets</td>
+<td>int32</td>
+<td>Say there are T transcripts</td>
 </tr>
 <tr>
-<td>Beastie Boys</td>
-<td>License to Ill</td>
-<td>1986</td>
+<td># of characters in target IDs</td>
+<td>int32</td>
+<td>Repeated T times</td>
+</tr>
+<tr>
+<td>Target IDs</td>
+<td>string</td>
+<td>Repeated T times</td>
+</tr>
+<tr>
+<td># of haplotypes</td>
+<td>int32</td>
+<td>Say there are H founder strains</td>
+</tr>
+<tr>
+<td># of characters in haplotype IDs</td>
+<td>int32</td>
+<td>Repeated H times</td>
+</tr>
+<tr>
+<td>Haplotype IDs</td>
+<td>string</td>
+<td>Repeated H times</td>
 </tr>
 </tbody>
 </table>
+
+<h4>Content part for Format=0</h4>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td># of reads</td>
+<td>int32</td>
+<td>Say there are M reads</td>
+</tr>
+<tr>
+<td># of characters in read IDs</td>
+<td>int32</td>
+<td>Repeated M times</td>
+</tr>
+<tr>
+<td>Read IDs</td>
+<td>string</td>
+<td>Repeated M times</td>
+</tr>
+<tr>
+<td># of alignments for each read</td>
+<td>int32</td>
+<td>Say there are N alignments</td>
+</tr>
+<tr>
+<td>Read index</td>
+<td>int32</td>
+<td>Repeated N times</td>
+</tr>
+<tr>
+<td>Target index</td>
+<td>int32</td>
+<td>Repeated N times</td>
+</tr>
+<tr>
+<td>Bit vector<sup><a href="#fn1" id="ref1">1</a></sup></td>
+<td>H bits</td>
+<td>Repeated N times</td>
+</tr>
+</tbody>
+</table>
+<p><sup id="fn1">1. Bit vector is used to specify which haplotype a read aligns to for a given target.<a href="#ref1" title="Jump back to footnote 1 in the text.">↩</a></sup></p>
+
+<h4>Content part for Format=1</h4>
+
+<table>
+<thead>
+<tr>
+<th>Name</th>
+<th>Type</th>
+<th>Note</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td># of equivalence classes (EC)</td>
+<td>int32</td>
+<td>Say there are M ECs</td>
+</tr>
+<tr>
+<td>Read counts for each EC</td>
+<td>int32</td>
+<td>Repeated M times</td>
+</tr>
+<tr>
+<td># of alignments in each EC</td>
+<td>int32</td>
+<td>Say there are N alignments</td>
+</tr>
+<tr>
+<td>EC index</td>
+<td>int32</td>
+<td>Repeated N times</td>
+</tr>
+<tr>
+<td>Target index</td>
+<td>int32</td>
+<td>Repeated N times</td>
+</tr>
+<tr>
+<td>Bit vector<sup><a href="#fn2" id="ref2">2</a></sup></td>
+<td>H bits</td>
+<td>Repeated N times</td>
+</tr>
+</tbody>
+</table>
+<p><sup id="fn2">2. Bit vector is used to specify which haplotype an EC aligns to for a given target.<a href="#ref2" title="Jump back to footnote 2 in the text.">↩</a></sup></p>
+
 
 <br>
 <div id="home">
