@@ -52,12 +52,15 @@ title: {{ site.name }}
     -h, --help  Show this message and exit.</code>
 </pre>
 
-<p><code><strong>split</strong></code></p> divides a bam file into smaller bam files (with the same header) to help parallelism in any downstream analyses. An input bam file is split such that all the alignment of a same read appear only in a single chunk. No sorting required.
+<p><code><strong>split</strong></code> divides a bam file into smaller bam files (with the same header) to help parallelism in any downstream analyses. An input bam file is split such that all the alignment of a same read appear only in a single chunk. No sorting required.</p>
 
 <pre><code>alntools split -h
-Usage: alntools split <options> bam_file number
+Usage: alntools split <options> bam_file N
+
+  Splits a BAM file (bam_file) into N smaller ones
 
 Options:
+  -c, --chunks INTEGER       Number of chunks to process
   -d, --directory DIRECTORY  Output directory for storing bam file chunks
   -v, --verbose              Run in verbose mode
   -h, --help                 Show this message and exit.</code>
