@@ -3,12 +3,12 @@ layout: default
 title: {{ site.name }}
 ---
 
-<p><strong>alntools</strong> processes next-generation sequencing read alignments into a sparse compressed incidence matrix (a.k.a. an Equivalence Class) and stores it in a pre-defined <a href="#output">binary format</a>.</p>
+<p><strong>alntools</strong> processes next-generation sequencing read alignments into a sparse compressed incidence matrix (aka Equivalence Classes) and stores it in a pre-defined <a href="#output">binary format</a> for efficient downstream analyses and storage. It enables us to compare, contrast, or combine the results of different alignment strategies. </p>
 
 <h2>
 <a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h2>
 
-<p><strong>Note:</strong> Although alntools is available at PyPI for <code>pip install</code> or <code>easy_install</code>, we highly recommend using <a href="https://www.continuum.io/downloads">Anaconda distribution</a> of python to install all the dependencies without issues. We are going to post alntools on <a href="https://anaconda.org/kbchoi">Anaconda Cloud</a>, so add the following channels if you have not already:</p>
+<p><strong>Note:</strong> Although alntools is available at PyPI for <code>pip install</code> or <code>easy_install</code>, we highly recommend using <a href="https://www.continuum.io/downloads">Anaconda distribution</a> of python to install all the dependencies without issues. We are going to post alntools on <a href="https://anaconda.org/kbchoi">Anaconda Cloud</a> soon, so add the following channels if you have not already:</p>
 
 <pre>
   <code>$ conda config --add channels r
@@ -27,7 +27,7 @@ title: {{ site.name }}
   (alntools) $ python setup.py install</code>
 </pre>
 
-<p>That's all! Now alntools is ready. Once you are done using alntools, you can go out from alntools virtual environment anytime:</p>
+<p>That's all! Now alntools is ready. Once you are done using alntools, you can go out from its virtual environment anytime:</p>
 
 <pre><code>(alntools) $ source deactivate
 </code></pre>
@@ -39,25 +39,20 @@ title: {{ site.name }}
   <code>$ alntools -h
   Usage: alntools [OPTIONS] COMMAND [ARGS]...
 
-    alntools
-
-    Simple tools for alignment
-
   Commands:
-    bam2ec     convert a BAM file to EC
-    bam2emase  convert a BAM file to APM
-    ec2emase   convert an EC file to EMASE
-    emase2ec   convert an EMASE file to EC
-    range      test
-    split      split a BAM file into many
+    bam2ec     Convert a BAM file to EC
+    bam2emase  Convert a BAM file to APM
+    ec2emase   Convert an EC file to EMASE
+    emase2ec   Convert an EMASE file to EC
+    range      Report the range of alignment to each target
+    split      split a BAM file into chunks
 
   Options:
     --version   Show the version and exit.
     -h, --help  Show this message and exit.</code>
 </pre>
 
-<ul><li><strong>bam2ec</strong></li></ul>
-<p><code>bam2ec</code> processes read alignments and create equivalence classes. Currently only BAM format is supported.</p>
+<p><code><strong>bam2ec</strong></code> processes read alignments and create equivalence classes. Currently only BAM format is supported.</p>
 <pre>
 <code>$ alntools bam2ec -h
 Usage: alntools bam2ec &lt;options&gt; bam_file ec_file
@@ -74,10 +69,66 @@ Options:
 </pre>
 
 <ul><li>bam2emase</li></ul>
+<pre><code>$ alntools bam2emase -h
+Usage: alntools bam2emase &lt;options&gt; bam_file emase_file
+
+  Convert a BAM file (bam_file) to an EMASE file (emase_file).
+
+Options:
+  -c, --chunks INTEGER       number of chunks to process
+  -d, --directory DIRECTORY  temp directory
+  -t, --targets FILE         target file
+  -v, --verbose              the more times listed, the more output
+  -h, --help                 Show this message and exit.</code>
+</pre>
+
+
 <ul><li>ec2emase</li></ul>
+<pre><code>$ alntools ec2emase -h
+Usage: alntools ec2emase &lt;options&gt; ec_file emase_file
+
+  Convert an EC file (ec_file) to an EMASE file (emase_file).
+
+Options:
+  -v, --verbose  the more times listed, the more output
+  -h, --help     Show this message and exit.</code>
+</pre>
+
 <ul><li>emase2ec</li></ul>
+<pre><code>$ alntools emase2ec -h
+Usage: alntools emase2ec <options> emase_file ec_file
+
+  Convert an EMASE file (emase_file) to an EC file (ec_file).
+
+Options:
+  -v, --verbose  the more times listed, the more output
+  -h, --help     Show this message and exit.</code>
+</pre>
+
 <ul><li>split</li></ul>
+<pre><code>alntools split -h
+Usage: alntools split <options> bam_file number
+
+  Convert a BAM file (bam_file) to an EC file (ec_file).
+
+Options:
+  -d, --directory DIRECTORY  output directory
+  -v, --verbose              the more times listed, the more output
+  -h, --help                 Show this message and exit.</code>
+</pre>
+
 <ul><li>range</li></ul>
+<pre><code>$ alntools range -h
+Usage: alntools range <options> [INPUT]... range_file
+
+  Create range file for specified BAM files
+
+Options:
+  -d, --directory DIRECTORY  temp directory
+  -t, --targets FILE         target file
+  -v, --verbose              the more times listed, the more output
+  -h, --help                 Show this message and exit.</code>
+</pre>
 
 
 
