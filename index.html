@@ -40,84 +40,31 @@ title: {{ site.name }}
   Usage: alntools [OPTIONS] COMMAND [ARGS]...
 
   Commands:
+    split      split a BAM file into chunks
+    range      Report the range of alignment to each target
     bam2ec     Convert a BAM file to EC
     bam2emase  Convert a BAM file to APM
     ec2emase   Convert an EC file to EMASE
     emase2ec   Convert an EMASE file to EC
-    range      Report the range of alignment to each target
-    split      split a BAM file into chunks
 
   Options:
     --version   Show the version and exit.
     -h, --help  Show this message and exit.</code>
 </pre>
 
-<p><code><strong>bam2ec</strong></code> processes read alignments and create equivalence classes. Currently only BAM format is supported.</p>
-<pre>
-<code>$ alntools bam2ec -h
-Usage: alntools bam2ec &lt;options&gt; bam_file ec_file
+<p><code><strong>split</strong></code></p> divides a bam file into smaller bam files (with the same header) to help parallelism in any downstream analyses. An input bam file is split such that all the alignment of a same read appear only in a single chunk. No sorting required.
 
-  Convert a BAM file (bam_file) to an EC file (ec_file).
-
-Options:
-  -c, --chunks INTEGER       number of chunks to process
-  -d, --directory DIRECTORY  temp directory
-  --range PATH               range file
-  -t, --targets FILE         target file
-  -v, --verbose              the more times listed, the more output
-  -h, --help                 Show this message and exit.</code>
-</pre>
-
-<ul><li>bam2emase</li></ul>
-<pre><code>$ alntools bam2emase -h
-Usage: alntools bam2emase &lt;options&gt; bam_file emase_file
-
-  Convert a BAM file (bam_file) to an EMASE file (emase_file).
-
-Options:
-  -c, --chunks INTEGER       number of chunks to process
-  -d, --directory DIRECTORY  temp directory
-  -t, --targets FILE         target file
-  -v, --verbose              the more times listed, the more output
-  -h, --help                 Show this message and exit.</code>
-</pre>
-
-
-<ul><li>ec2emase</li></ul>
-<pre><code>$ alntools ec2emase -h
-Usage: alntools ec2emase &lt;options&gt; ec_file emase_file
-
-  Convert an EC file (ec_file) to an EMASE file (emase_file).
-
-Options:
-  -v, --verbose  the more times listed, the more output
-  -h, --help     Show this message and exit.</code>
-</pre>
-
-<ul><li>emase2ec</li></ul>
-<pre><code>$ alntools emase2ec -h
-Usage: alntools emase2ec <options> emase_file ec_file
-
-  Convert an EMASE file (emase_file) to an EC file (ec_file).
-
-Options:
-  -v, --verbose  the more times listed, the more output
-  -h, --help     Show this message and exit.</code>
-</pre>
-
-<ul><li>split</li></ul>
 <pre><code>alntools split -h
 Usage: alntools split <options> bam_file number
 
-  Convert a BAM file (bam_file) to an EC file (ec_file).
-
 Options:
-  -d, --directory DIRECTORY  output directory
-  -v, --verbose              the more times listed, the more output
+  -d, --directory DIRECTORY  Output directory for storing bam file chunks
+  -v, --verbose              Run in verbose mode
   -h, --help                 Show this message and exit.</code>
 </pre>
 
-<ul><li>range</li></ul>
+<p><code><strong>range</strong></code> reports <em>the effective lengths</em> of alignment targets from the input data by finding the left and rightmost base of all reads that align to each target.</p>
+
 <pre><code>$ alntools range -h
 Usage: alntools range <options> [INPUT]... range_file
 
@@ -125,11 +72,61 @@ Usage: alntools range <options> [INPUT]... range_file
 
 Options:
   -d, --directory DIRECTORY  temp directory
-  -t, --targets FILE         target file
-  -v, --verbose              the more times listed, the more output
+  -t, --targets TARGET FILE  Target ID file
+  -v, --verbose              Run in verbose mode
   -h, --help                 Show this message and exit.</code>
 </pre>
 
+<p><code><strong>bam2ec</strong></code> processes a bam file, creates equivalence classes, and exports them in a <a href="#output">binary format</a>. It runs in parallel by dividing an input bam file into chunks. If <code>--range</code> option is set, it reports effective target lengths according to alignment data.</p>
+<pre>
+<code>$ alntools bam2ec -h
+Usage: alntools bam2ec &lt;options&gt; bam_file ec_file
+
+  Convert a BAM file (bam_file) to an EC file (ec_file).
+
+Options:
+  -c, --chunks INTEGER       Number of chunks to process
+  -d, --directory DIRECTORY  Temp directory to store bam file chunks
+  --range PATH               Report alignment range
+  -t, --targets TARGET FILE  Target ID file
+  -v, --verbose              Run in verbose mode
+  -h, --help                 Show this message and exit.</code>
+</pre>
+
+<p><code><strong>bam2emase</strong></code>processes a bam file, creates equivalence classes, and exports them in a <a href="http://emase.readthedocs.io/en/latest/readme.html">emase</a> HDF5 format so we can use EMASE with equivalence classes. It also runs in parallel by dividing an input bam file into chunks.</p>
+<pre><code>$ alntools bam2emase -h
+Usage: alntools bam2emase &lt;options&gt; bam_file emase_file
+
+  Convert a BAM file (bam_file) to an EMASE file (emase_file).
+
+Options:
+  -c, --chunks INTEGER       Number of chunks to process
+  -d, --directory DIRECTORY  Temp directory to store bam file chunks
+  -t, --targets TARGET FILE  Target ID file
+  -v, --verbose              Run in verbose mode
+  -h, --help                 Show this message and exit.</code>
+</pre>
+
+
+<p><code><strong>ec2emase</strong></code> and <code><strong>emase2ec</strong></code> support conversion between binary and emase formats of equivalence class file.</p>
+<pre><code>$ alntools ec2emase -h
+Usage: alntools ec2emase &lt;options&gt; ec_file emase_file
+
+  Convert an EC file (ec_file) to an EMASE file (emase_file).
+
+Options:
+  -v, --verbose  Run in verbose mode
+  -h, --help     Show this message and exit.</code>
+</pre>
+<pre><code>$ alntools emase2ec -h
+Usage: alntools emase2ec <options> emase_file ec_file
+
+  Convert an EMASE file (emase_file) to an EC file (ec_file).
+
+Options:
+  -v, --verbose  Run in verbose mode
+  -h, --help     Show this message and exit.</code>
+</pre>
 
 
 <h2>
