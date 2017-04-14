@@ -52,7 +52,7 @@ title: {{ site.name }}
     -h, --help  Show this message and exit.</code>
 </pre>
 
-<p><code><strong>split</strong></code> divides a bam file into smaller bam files (with the same header) to help parallelism in any downstream analyses. An input bam file is split such that all the alignment of a same read appear only in a single chunk. No sorting required.</p>
+<p>&#8226;<code><strong>split</strong></code> divides a bam file into smaller bam files (with the same header) to help parallelism in any downstream analyses. An input bam file is split such that all the alignment of a same read appear only in a single chunk. No sorting required.</p>
 
 <pre><code>alntools split -h
 Usage: alntools split <options> bam_file N
@@ -66,7 +66,7 @@ Options:
   -h, --help                 Show this message and exit.</code>
 </pre>
 
-<p><code><strong>range</strong></code> reports <em>the effective lengths</em> of alignment targets from the input data by finding the left and rightmost base of all reads that align to each target.</p>
+<p>&#8226;<code><strong>range</strong></code> reports <em>the effective lengths</em> of alignment targets from the input data by finding the left and rightmost base of all reads that align to each target.</p>
 
 <pre><code>$ alntools range -h
 Usage: alntools range <options> [INPUT]... range_file
@@ -80,7 +80,7 @@ Options:
   -h, --help                 Show this message and exit.</code>
 </pre>
 
-<p><code><strong>bam2ec</strong></code> processes a bam file, creates equivalence classes, and exports them in a <a href="#output">binary format</a>. It runs in parallel by dividing an input bam file into chunks. If <code>--range</code> option is set, it reports effective target lengths according to alignment data.</p>
+<p>&#8226;<code><strong>bam2ec</strong></code> processes a bam file, creates equivalence classes, and exports them in a <a href="#output">binary format</a>. It runs in parallel by dividing an input bam file into chunks. If <code>--range</code> option is set, it reports effective target lengths according to alignment data.</p>
 <pre>
 <code>$ alntools bam2ec -h
 Usage: alntools bam2ec &lt;options&gt; bam_file ec_file
@@ -96,7 +96,7 @@ Options:
   -h, --help                 Show this message and exit.</code>
 </pre>
 
-<p><code><strong>bam2emase</strong></code>processes a bam file, creates equivalence classes, and exports them in an <a href="http://emase.readthedocs.io/en/latest/readme.html">emase</a> HDF5 format so we can use EMASE with equivalence classes. It also runs in parallel by dividing an input bam file into chunks.</p>
+<p>&#8226;<code><strong>bam2emase</strong></code>processes a bam file, creates equivalence classes, and exports them in an <a href="http://emase.readthedocs.io/en/latest/readme.html">emase</a> HDF5 format so we can use EMASE with equivalence classes. It also runs in parallel by dividing an input bam file into chunks.</p>
 <pre><code>$ alntools bam2emase -h
 Usage: alntools bam2emase &lt;options&gt; bam_file emase_file
 
@@ -111,7 +111,7 @@ Options:
 </pre>
 
 
-<p><code><strong>ec2emase</strong></code> and <code><strong>emase2ec</strong></code> support conversion between binary and emase formats of equivalence class file.</p>
+<p>&#8226;<code><strong>ec2emase</strong></code> and <code><strong>emase2ec</strong></code> support conversion between binary and emase formats of equivalence class file.</p>
 <pre><code>$ alntools ec2emase -h
 Usage: alntools ec2emase &lt;options&gt; ec_file emase_file
 
