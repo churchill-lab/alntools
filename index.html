@@ -37,21 +37,20 @@ title: {{ site.name }}
 <h2>
 <a id="usage" class="anchor" href="#usage" aria-hidden="true"><span class="octicon octicon-link"></span></a>Usage</h2>
 
-<pre>
-  <code>$ alntools -h
-  Usage: alntools [OPTIONS] COMMAND [ARGS]...
+<pre><code>$ alntools -h
+Usage: alntools [OPTIONS] COMMAND [ARGS]...
 
-  Commands:
-    split      split a BAM file into chunks
-    range      Report the range of alignment to each target
-    bam2ec     Convert a BAM file to EC
-    bam2emase  Convert a BAM file to APM
-    ec2emase   Convert an EC file to EMASE
-    emase2ec   Convert an EMASE file to EC
+Commands:
+  split      split a BAM file into chunks
+  range      Report the range of alignment to each target
+  bam2ec     Convert a BAM file to EC
+  bam2emase  Convert a BAM file to APM
+  ec2emase   Convert an EC file to EMASE
+  emase2ec   Convert an EMASE file to EC
 
-  Options:
-    --version   Show the version and exit.
-    -h, --help  Show this message and exit.</code>
+Options:
+  --version   Show the version and exit.
+  -h, --help  Show this message and exit.</code>
 </pre>
 
 <p>&#8226;<code><strong>split</strong></code> divides a bam file into smaller bam files (with the same header) to help parallelism in any downstream analyses. An input bam file is split such that all the alignment of a same read appear only in a single chunk. No sorting required.</p>
