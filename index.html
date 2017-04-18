@@ -12,21 +12,19 @@ title: {{ site.name }}
 
 <p><strong>Note:</strong> Although alntools is available at PyPI for <code>pip install</code> or <code>easy_install</code>, we highly recommend using <a href="https://www.continuum.io/downloads">Anaconda distribution</a> of python to install all the dependencies without issues. We are going to post alntools on <a href="https://anaconda.org/kbchoi">Anaconda Cloud</a> soon, so add the following channels if you have not already:</p>
 
-<pre>
-  <code>$ conda config --add channels r
-  $ conda config --add channels bioconda</code>
+<pre><code>$ conda config --add channels r
+$ conda config --add channels bioconda</code>
 </pre>
 
 <p>To avoid conflicts among dependencies, we also highly recommend using conda virtual environment and install alntools in it:</p>
 
-<pre>
-  <code>$ git clone https://github.com/churchill-lab/alntools
-  $ cd alntools
-  $ conda create -n alntools python=2
-  $ source activate alntools
-  (alntools) $ conda install -c kbchoi emase
-  (alntools) $ conda install future
-  (alntools) $ python setup.py install</code>
+<pre><code>$ git clone https://github.com/churchill-lab/alntools
+$ cd alntools
+$ conda create -n alntools python=2
+$ source activate alntools
+(alntools) $ conda install -c kbchoi emase
+(alntools) $ conda install future
+(alntools) $ python setup.py install</code>
 </pre>
 
 <p>That's all! Now alntools is ready. Once you are done using alntools, you can go out from its virtual environment anytime:</p>
