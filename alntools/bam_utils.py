@@ -486,6 +486,11 @@ def process_range_bam(rp):
             if alignment.is_unmapped:
                 continue
 
+            # added for paired end files
+            if alignment.is_paired:
+                if not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
+                    continue
+
             valid_alignments += 1
 
             # reference_sequence_name = Column 3 from file, the Reference NAME (EnsemblID_Haplotype)
@@ -578,7 +583,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     if not temp_dir:
         temp_dir = os.path.dirname(output_filename)
 
-
     LOG.info("Calculating {:,} chunks".format(num_chunks))
     temp_time = time.time()
     chunks = calculate_chunks(bam_filename, num_chunks)
@@ -609,7 +613,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         pid += 1
         all_params.append(params)
         LOG.debug('params = {}'.format(str(params)))
-
 
     final = ConvertResults()
     final.ec = OrderedDict()
