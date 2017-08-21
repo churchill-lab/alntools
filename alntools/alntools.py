@@ -4,6 +4,7 @@ from collections import OrderedDict
 import time
 import os
 
+#from . import bam_utils_new as bam_utils
 from . import bam_utils
 from . import utils
 

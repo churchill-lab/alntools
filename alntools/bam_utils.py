@@ -314,6 +314,11 @@ def process_convert_bam(cp):
                     if alignment.is_unmapped:
                         continue
 
+                    # added for paired end files
+                    if alignment.is_paired:
+                        if alignment.is_read2 or not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
+                            continue
+
                     valid_alignments += 1
 
                     # reference_sequence_name = Column 3 from file, the Reference NAME (EnsemblID_Haplotype)
