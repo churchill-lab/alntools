@@ -488,7 +488,7 @@ def process_range_bam(rp):
 
             # added for paired end files
             if alignment.is_paired:
-                if not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
+                if alignment.is_read2 or not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
                     continue
 
             valid_alignments += 1
@@ -506,7 +506,7 @@ def process_range_bam(rp):
             min_max = ranges.get(reference_id, (100000000000, -1))
             n = min(min_max[0], alignment.reference_start)
             x = max(min_max[1], alignment.reference_start)
-            ranges[reference_id] = (n,x)
+            ranges[reference_id] = (n, x)
 
             if rp.target_file:
                 if main_target not in main_targets:
@@ -1138,9 +1138,11 @@ def _quick_bgzf_load(handle):
 
     if magic != bgzf._bgzf_magic:
         raise ValueError("A BGZF block should start with %r, not %r; handle.tell() now says %r" % (bgzf._bgzf_magic, magic, handle.tell()))
+
     gzip_mod_time, gzip_extra_flags, gzip_os, extra_len = struct.unpack("<LBBH", handle.read(8))
     block_size = None
     x_len = 0
+
     while x_len < extra_len:
         subfield_id = handle.read(2)
         subfield_len = struct.unpack("<H", handle.read(2))[0]
@@ -1157,8 +1159,6 @@ def _quick_bgzf_load(handle):
     expected_crc = handle.read(4)
     expected_size = struct.unpack("<I", handle.read(4))[0]
     return block_size, expected_size
-
-
 
 
 def generate_bam_ranges(input_files, range_filename, target_filename=None, temp_dir=None):
