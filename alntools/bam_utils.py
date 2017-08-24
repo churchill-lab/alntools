@@ -316,12 +316,8 @@ def process_convert_bam(cp):
 
                     # added for paired end files
                     if alignment.is_paired:
-                        if alignment.is_read2: # or not alignment.is_proper_pair: # or alignment.reference_id != alignment.next_reference_id: # or alignment.next_reference_start < 0:
+                        if alignment.is_read2 or not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
                             continue
-
-                    if not alignment.is_proper_pair:
-                        print alignment
-                        break
 
                     valid_alignments += 1
 
@@ -428,7 +424,6 @@ def process_convert_bam(cp):
     ret.tid_ranges = ranges
 
     LOG.info("{} valid alignments processed.".format(valid_alignments))
-    print valid_alignments
 
     return ret
 
