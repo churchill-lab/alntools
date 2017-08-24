@@ -316,10 +316,10 @@ def process_convert_bam(cp):
 
                     # added for paired end files
                     if alignment.is_paired:
-                        if alignment.is_read2: # or not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
+                        if alignment.is_read2 or not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id: # or alignment.next_reference_start < 0:
                             continue
 
-                    if not alignment.is_proper_pair:
+                    if alignment.next_reference_start < 0:
                         print alignment
                         break
 
@@ -426,6 +426,8 @@ def process_convert_bam(cp):
     ret.target_idx_to_main_target = reference_id_to_main_target
     ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
+
+    LOG.info("{} valid alignments processed.".format(valid_alignments))
 
     return ret
 
