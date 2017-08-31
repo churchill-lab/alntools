@@ -355,12 +355,21 @@ def process_convert_bam(cp):
                     if query_name is None:
                         query_name = alignment.query_name
 
+                        i = query_name.find(' ')
+                        if i > 0:
+                            query_name = query_name[:i]
+
                     try:
                         unique_reads[query_name] += 1
                     except KeyError:
                         unique_reads[query_name] = 1
 
-                    if query_name != alignment.query_name:
+                    alignment_query_name = alignment.query_name
+                    i = alignment_query_name.find(' ')
+                    if i > 0:
+                        alignment_query_name = alignment_query_name[:i]
+
+                    if query_name != alignment_query_name:
                         ec_key = ','.join(sorted(reference_ids))
 
                         try:
@@ -370,6 +379,10 @@ def process_convert_bam(cp):
                             ec_idx[ec_key] = len(ec_idx)
 
                         query_name = alignment.qname
+                        i = query_name.find(' ')
+                        if i > 0:
+                            query_name = query_name[:i]
+
                         reference_ids = [reference_id]
                         read_id_switch_counter += 1
                     else:
@@ -408,11 +421,11 @@ def process_convert_bam(cp):
 
     haplotypes = sorted(list(haplotypes))
 
-    LOG.debug("# Unique Reads: {:,}".format(len(unique_reads)))
-    LOG.debug("# Reads/Target Duplications: {:,}".format(same_read_target_counter))
-    LOG.debug("# Main Targets: {:,}".format(len(main_targets)))
-    LOG.debug("# Haplotypes: {:,}".format(len(haplotypes)))
-    LOG.debug("# Equivalence Classes: {:,}".format(len(ec)))
+    LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
+    LOG.debug("Process ID: {}, # Reads/Target Duplications: {:,}".format(cp.process_id, same_read_target_counter))
+    LOG.debug("Process ID: {}, # Main Targets: {:,}".format(cp.process_id, len(main_targets)))
+    LOG.debug("Process ID: {}, # Haplotypes: {:,}".format(cp.process_id, len(haplotypes)))
+    LOG.debug("Process ID: {}, # Equivalence Classes: {:,}".format(cp.process_id, len(ec)))
 
     ret = ConvertResults()
     ret.main_targets = main_targets
@@ -645,34 +658,43 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
     # parse results
     for idx, result in enumerate(results):
+        LOG.info("Combining result #{}".format(idx))
         if not final.init:
             final = result
             final.init = True
         else:
             # combine ec
+            LOG.info("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
             for k, v in result.ec.iteritems():
                 if k in final.ec:
                     final.ec[k] += v
                 else:
                     final.ec[k] = v
                     final.ec_idx[k] = len(final.ec_idx)
+            LOG.info("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
 
             # combine haplotypes
+            LOG.info("CHUNK {}: # Result Haplotypes: {:,}".format(idx, len(result.haplotypes)))
             s1 = set(final.haplotypes)
             s2 = set(result.haplotypes)
             final.haplotypes = sorted(list(s1.union(s2)))
+            LOG.info("CHUNK {}: # Total Haplotypes: {:,}".format(idx, len(final.haplotypes)))
 
             # combine target_idx_to_main_target
+            LOG.info("CHUNK {}: # Result Main Targets: {:,}".format(idx, len(result.main_targets)))
             for k, v in result.target_idx_to_main_target.iteritems():
                 if k not in final.target_idx_to_main_target:
                     final.target_idx_to_main_target[k] = v
+            LOG.info("CHUNK {}: # Total Main Targets: {:,}".format(idx, len(final.main_targets)))
 
             # unique reads
+            LOG.info("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
             for k, v in result.unique_reads.iteritems():
                 if k in final.unique_reads:
                     final.unique_reads[k] += v
                 else:
                     final.unique_reads[k] = v
+            LOG.info("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(result.unique_reads)))
 
             if range_filename:
                 # tid_stats
@@ -1037,11 +1059,23 @@ def calculate_chunks(filename, num_chunks):
             virtual_offset = bgzf.make_virtual_offset(block_offsets[index], 0)
             aln_file.seek(virtual_offset)
             aln = aln_file.next()
-            aln_first = aln
+            aln_qname = aln.query_name
 
-            while aln.qname == aln_first.qname:
+            # added because some query_name had spaces
+            i = aln_qname.find(' ')
+            if i > 0:
+                aln_qname = aln_qname[:i]
+
+            aln_first_qname = aln_qname
+
+            while aln_first_qname == aln_qname:
+
                 virtual_offset = aln_file.tell()
                 aln = aln_file.next()
+                aln_qname = aln.query_name
+                i = aln_qname.find(' ')
+                if i > 0:
+                    aln_qname = aln_qname[:i]
 
             partitioned_offsets.append(bgzf.split_virtual_offset(virtual_offset))
 
