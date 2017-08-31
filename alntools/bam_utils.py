@@ -281,13 +281,12 @@ def process_convert_bam(cp):
     all_alignments = 0
     valid_alignments = 0
     ec_key = None
-    reference_id = None
-
-    reference_ids = []
     temp_name = os.path.join(cp.temp_dir, '_bam2ec.')
 
     try:
         for file_info_data in cp.data:
+            reference_id = None
+            reference_ids = []
             try:
                 idx = file_info_data[0]
                 parse_record = file_info_data[1]
@@ -300,7 +299,6 @@ def process_convert_bam(cp):
                 LOG.debug("Process ID: {}, Opening alignment file: {}".format(cp.process_id, temp_file))
 
                 alignment_file = pysam.AlignmentFile(temp_file)
-                tell = alignment_file.tell()
 
                 # query template name
                 query_name = None
@@ -378,7 +376,7 @@ def process_convert_bam(cp):
                             ec[ec_key] = 1
                             ec_idx[ec_key] = len(ec_idx)
 
-                        query_name = alignment.qname
+                        query_name = alignment.query_name
                         i = query_name.find(' ')
                         if i > 0:
                             query_name = query_name[:i]
@@ -694,7 +692,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     final.unique_reads[k] += v
                 else:
                     final.unique_reads[k] = v
-            LOG.info("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(result.unique_reads)))
+            LOG.info("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(final.unique_reads)))
 
             if range_filename:
                 # tid_stats
@@ -715,6 +713,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
     LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
+    LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
 
     if range_filename:
         # tid_stats
