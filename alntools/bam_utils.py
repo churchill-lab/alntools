@@ -436,6 +436,8 @@ def process_convert_bam(cp):
     ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
 
+    LOG.info("{} valid alignments processed.".format(valid_alignments))
+
     return ret
 
 

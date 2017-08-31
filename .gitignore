@@ -54,3 +54,7 @@ data
 
 # publication directory
 publication
+
+# github-pages files
+_site
+Gemfile.lock
