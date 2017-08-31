@@ -436,8 +436,6 @@ def process_convert_bam(cp):
     ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
 
-    LOG.info("{} valid alignments processed.".format(valid_alignments))
-
     return ret
 
 
@@ -1370,6 +1368,7 @@ def generate_bam_ranges(input_files, range_filename, target_filename=None, temp_
 
             fw.write("\t".join(vals))
             fw.write("\n")
+
 
     LOG.info("{} created in {}, total time: {}".format(range_filename,
                                                                utils.format_time(temp_time, time.time()),
