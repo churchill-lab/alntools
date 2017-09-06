@@ -54,10 +54,12 @@ class ConvertParams(object):
 
 
 class ConvertResults(object):
-    slots = ['main_targets', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges']
+    slots = ['main_targets', 'valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges']
 
     def __init__(self):
         self.main_targets = None
+        self.valid_alignments = None
+        self.all_alignments = None
         self.ec = None
         self.ec_idx = None
         self.haplotypes = None
@@ -427,6 +429,8 @@ def process_convert_bam(cp):
 
     ret = ConvertResults()
     ret.main_targets = main_targets
+    ret.valid_alignments = valid_alignments
+    ret.all_alignments = all_alignments
     ret.ec = ec
     ret.ec_idx = ec_idx
     ret.haplotypes = haplotypes
@@ -435,9 +439,6 @@ def process_convert_bam(cp):
     ret.tid_ranges = ranges
 
     return ret
-
-
-
 
 
 def process_range_bam(rp):
@@ -631,6 +632,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         LOG.debug('params = {}'.format(str(params)))
 
     final = ConvertResults()
+    final.valid_alignments = 0
+    final.all_alignments = 0
     final.ec = OrderedDict()
     final.ec_idx = {}
     final.haplotypes = set()
@@ -662,37 +665,40 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             final.init = True
         else:
             # combine ec
-            LOG.info("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
+            LOG.debug("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
             for k, v in result.ec.iteritems():
                 if k in final.ec:
                     final.ec[k] += v
                 else:
                     final.ec[k] = v
                     final.ec_idx[k] = len(final.ec_idx)
-            LOG.info("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
+            LOG.debug("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
 
             # combine haplotypes
-            LOG.info("CHUNK {}: # Result Haplotypes: {:,}".format(idx, len(result.haplotypes)))
+            LOG.debug("CHUNK {}: # Result Haplotypes: {:,}".format(idx, len(result.haplotypes)))
             s1 = set(final.haplotypes)
             s2 = set(result.haplotypes)
             final.haplotypes = sorted(list(s1.union(s2)))
-            LOG.info("CHUNK {}: # Total Haplotypes: {:,}".format(idx, len(final.haplotypes)))
+            LOG.debug("CHUNK {}: # Total Haplotypes: {:,}".format(idx, len(final.haplotypes)))
 
             # combine target_idx_to_main_target
-            LOG.info("CHUNK {}: # Result Main Targets: {:,}".format(idx, len(result.main_targets)))
+            LOG.debug("CHUNK {}: # Result Main Targets: {:,}".format(idx, len(result.main_targets)))
             for k, v in result.target_idx_to_main_target.iteritems():
                 if k not in final.target_idx_to_main_target:
                     final.target_idx_to_main_target[k] = v
-            LOG.info("CHUNK {}: # Total Main Targets: {:,}".format(idx, len(final.main_targets)))
+            LOG.debug("CHUNK {}: # Total Main Targets: {:,}".format(idx, len(final.main_targets)))
 
             # unique reads
-            LOG.info("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
+            LOG.debug("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
             for k, v in result.unique_reads.iteritems():
                 if k in final.unique_reads:
                     final.unique_reads[k] += v
                 else:
                     final.unique_reads[k] = v
-            LOG.info("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(final.unique_reads)))
+            LOG.debug("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(final.unique_reads)))
+
+            final.valid_alignments += result.valid_alignments
+            final.all_alignments += result.all_alignments
 
             if range_filename:
                 # tid_stats
@@ -710,6 +716,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("All results combined in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
              utils.format_time(start_time, time.time())))
 
+    #LOG.info("# Total Alignments: {:,}".format(final.all_alignments))
+    LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
     LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
     LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
