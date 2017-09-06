@@ -289,6 +289,7 @@ def process_convert_bam(cp):
         for file_info_data in cp.data:
             reference_id = None
             reference_ids = []
+
             try:
                 idx = file_info_data[0]
                 parse_record = file_info_data[1]
@@ -403,8 +404,6 @@ def process_convert_bam(cp):
             #LOG.info("{0:,} alignments processed, with {1:,} equivalence classes".format(line_no, len(ec)))
             if reference_id not in reference_ids:
                 reference_ids.append(reference_id)
-            else:
-                same_read_target_counter += 1
 
             ec_key = ','.join(sorted(reference_ids))
 
