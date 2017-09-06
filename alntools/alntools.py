@@ -13,6 +13,7 @@ from struct import pack
 
 import emase
 from emase import AlignmentPropertyMatrix as APM
+from scipy.sparse import coo_matrix
 
 LOG = utils.get_logger()
 
@@ -340,6 +341,84 @@ def ec2emase(file_in, file_out):
                 if bit:
                     # lid, hid, rid, value
                     apm.set_value(target_index, i, ec_index, 1)
+    except Exception as e:
+        LOG.error('Error: {}'.format(str(e)))
+
+    LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                        utils.format_time(start_time, time.time())))
+
+    temp_time = time.time()
+    LOG.info("Flushing to disk...")
+    apm.finalize()
+    apm.save(file_out, title='bam2ec')
+    LOG.info("{} created in {}, total time: {}".format(file_out,
+                                                   utils.format_time(temp_time, time.time()),
+                                                   utils.format_time(start_time, time.time())))
+
+
+def ec2emase_broke(file_in, file_out):
+    """
+
+    :param file_in:
+    :param file_out:
+    :return:
+    """
+    start_time = time.time()
+
+    LOG.info('Parsing EC file: {}'.format(file_in))
+    temp_time = time.time()
+    ec = parse_ec(file_in)
+
+    LOG.info("EC parsed in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                        utils.format_time(start_time, time.time())))
+
+    new_shape = (len(ec.targets_list), len(ec.haplotypes_list), len(ec.ec_list))
+
+    LOG.info('Constructing APM structure...')
+    LOG.debug('Shape={}'.format(new_shape))
+
+    apm = APM(shape=new_shape, haplotype_names=ec.haplotypes_list, locus_names=ec.targets_list, read_names=ec.ec_list)
+
+    LOG.debug('ec.haplotypes_list={}'.format(str(ec.haplotypes_list)))
+    LOG.debug('ec.targets_list[0:10]={}'.format(str(ec.targets_list[0:10])))
+    LOG.debug('ec.ec_list[0:10]={}'.format(str(ec.ec_list[0:10])))
+
+    temp_time = time.time()
+
+    # counts -> the number of times this equivalence class has appeared
+    #apm.count = ec.ec_counts_list
+
+
+
+    num_haplotypes = len(ec.haplotypes_list)
+
+    ec_arr = [[] for _ in range(num_haplotypes)]
+    target_arr = [[] for _ in range(num_haplotypes)]
+
+    try:
+
+        for alignment in ec.alignments:
+            # LOG.debug(str(alignment))
+            ec_index = alignment[0]
+            target_index = alignment[1]
+            temp_bits = alignment[2]
+
+            if temp_bits == 0:
+                continue
+
+            bits = utils.int_to_list(temp_bits, num_haplotypes)
+            for i, bit in enumerate(bits):
+                if bit:
+                    # lid, hid, rid, value
+                    ec_arr[i].append(ec_index)
+                    target_arr[i].append(target_index)
+
+        for h in range(num_haplotypes):
+            apm.data[h] = coo_matrix((len(ec_arr[h]), len(target_arr[h])))
+            apm.data[h].row = ec_arr[h]
+            apm.data[h].col = target_arr[h]
+
+
     except Exception as e:
         LOG.error('Error: {}'.format(str(e)))
 
