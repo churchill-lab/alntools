@@ -318,12 +318,15 @@ def ec2emase(file_in, file_out):
     LOG.debug('ec.targets_list[0:10]={}'.format(str(ec.targets_list[0:10])))
     LOG.debug('ec.ec_list[0:10]={}'.format(str(ec.ec_list[0:10])))
 
+
     temp_time = time.time()
 
     # counts -> the number of times this equivalence class has appeared
     apm.count = ec.ec_counts_list
 
     num_haplotypes = len(ec.haplotypes_list)
+    ec_arr = [[] for _ in xrange(0, num_haplotypes)]
+    target_arr = [[] for _ in xrange(0, num_haplotypes)]
 
     try:
 
@@ -340,7 +343,14 @@ def ec2emase(file_in, file_out):
             for i, bit in enumerate(bits):
                 if bit:
                     # lid, hid, rid, value
-                    apm.set_value(target_index, i, ec_index, 1)
+                    #apm.set_value(target_index, i, ec_index, 1)
+                    ec_arr[i].append(ec_index)
+                    target_arr[i].append(target_index)
+
+        for h in xrange(0, num_haplotypes):
+            d = np.ones(len(ec_arr[h]))
+            apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(ec.ec_list), len(ec.targets_list)))
+
     except Exception as e:
         LOG.error('Error: {}'.format(str(e)))
 

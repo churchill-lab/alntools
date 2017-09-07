@@ -771,7 +771,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
 
             # ec.values -> the number of times this equivalence class has appeared
-            apm.count = final.ec.values()
 
             ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
             target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
@@ -811,6 +810,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
 
             apm = APM(shape=new_shape, haplotype_names=final.haplotypes, locus_names=final.main_targets.keys(), read_names=ec_ids)
+            apm.count = final.ec.values()
 
             for h in xrange(0, len(final.haplotypes)):
                 d = np.ones(len(ec_arr[h]))
