@@ -771,7 +771,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
 
             # ec.values -> the number of times this equivalence class has appeared
-            #apm.count = final.ec.values()
+            apm.count = final.ec.values()
 
             ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
             target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
