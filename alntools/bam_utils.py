@@ -12,6 +12,8 @@ from . import utils
 from Bio import bgzf
 from emase import AlignmentPropertyMatrix as APM
 import pysam
+from scipy.sparse import coo_matrix
+import numpy as np
 
 try:
     xrange
@@ -767,11 +769,15 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
             LOG.debug('Shape={}'.format(new_shape))
 
-            apm = APM(shape=new_shape, haplotype_names=final.haplotypes, locus_names=final.main_targets.keys(), read_names=ec_ids)
 
             # ec.values -> the number of times this equivalence class has appeared
-            apm.count = final.ec.values()
+            #apm.count = final.ec.values()
 
+            ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
+            target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
+
+            m1 = 0
+            m2 = 0
             # k = comma seperated string of tids
             # v = the count
             for k, v in final.ec.iteritems():
@@ -792,12 +798,23 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                         read_transcript_idx = str(alignment_file.gettid(read_transcript))
 
                         if read_transcript_idx in arr_target_idx:
-                            LOG.debug("{}\t{}\t{}".format(final.ec_idx[k], final.main_targets[main_target], i))
+                            #LOG.debug("{}\t{}\t{}".format(final.ec_idx[k], final.main_targets[main_target], i))
 
                             # main_targets[main_target] = idx of main target
                             # i = the haplotype
                             # ec_idx[k] = index of ec
-                            apm.set_value(final.main_targets[main_target], i, final.ec_idx[k], 1)
+
+                            #apm.set_value(final.main_targets[main_target], i, final.ec_idx[k], 1)
+
+                            ec_arr[i].append(final.ec_idx[k])
+                            target_arr[i].append(final.main_targets[main_target])
+
+
+            apm = APM(shape=new_shape, haplotype_names=final.haplotypes, locus_names=final.main_targets.keys(), read_names=ec_ids)
+
+            for h in xrange(0, len(final.haplotypes)):
+                d = np.ones(len(ec_arr[h]))
+                apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
 
             LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                 utils.format_time(start_time, time.time())))
