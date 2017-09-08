@@ -1,0 +1,698 @@
+<!DOCTYPE HTML>
+
+<html>
+    <head>
+        <meta http-equiv="content-type" content="text/html; charset=UTF-8">
+
+        <title>Multiread Sharing Profile</title>
+
+        <link rel="stylesheet" type="text/css" href="css/jaxle.css"/>
+
+        <script type="text/javascript" src="js/jquery-1.11.0.js" charset="utf-8"></script>
+        <script type="text/javascript" src="js/d3.v3.min.js" charset="utf-8"></script>
+        <!--<script type="text/javascript" src="js/mm10-data.js"></script>-->
+        <script type="text/javascript" src="js/hg19-data.js"></script>
+        <script type="text/javascript" src="js/jaxle.js"></script>
+
+        <!-- Latest compiled and minified CSS -->
+        <link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.1.1/css/bootstrap.min.css">
+
+        <!-- Latest compiled and minified JavaScript -->
+        <script src="//netdna.bootstrapcdn.com/bootstrap/3.1.1/js/bootstrap.min.js"></script>
+
+        <style>
+            .chord-line-default {
+                stroke: rgba(255, 90, 0, 0.3);
+                stroke-width: 3;
+                fill: none;
+            }
+
+            /* add sharp corners to make the filter snuggle up to the filtered list */
+            .option-filter-input {border-bottom-left-radius: 0px;}
+            .option-filter-clear {border-bottom-right-radius: 0px;}
+            .option-filter-list {
+                border-top-left-radius: 0px;
+                border-top-right-radius: 0px;
+                border-top: 0px;
+            }
+            body {
+                background-color: rgb(237, 237, 237);
+            }
+
+            #cursor-status {
+                display: none;
+                position: absolute;
+                background-color: rgba(255, 255, 255, 0.75);
+                pointer-events: none;
+                white-space: nowrap;
+            }
+
+            #cursor-status td {
+                border: 2px solid lightgrey;
+            }
+        </style>
+
+        <script type="text/javascript">
+            if(!String.prototype.startsWith) {
+                Object.defineProperty(String.prototype, 'startsWith', {
+                    enumerable: false,
+                    configurable: false,
+                    writable: false,
+                    value: function(searchString, position) {
+                        position = position || 0;
+                        return this.lastIndexOf(searchString, position) === position;
+                    }
+                });
+            }
+
+            function log10(x) {
+                return Math.log(x) / Math.LN10;
+            }
+
+            /**
+             * a color map that functions using pretty much the same mapping algorithm as that used by the
+             * matplotlib python library
+             */
+            function ColorMap(cmSpecification) {
+                function interpolateColorComponent(colorComponent, value) {
+                    if(typeof colorComponent === 'number') {
+                        // this component is constant
+                        return colorComponent;
+                    } else if(value < colorComponent[0][0]) {
+                        return colorComponent[0][1];
+                    } else if(value > colorComponent[colorComponent.length - 1][0]) {
+                        return colorComponent[colorComponent.length - 1][2];
+                    } else {
+                        // find the index
+                        var interpIndex;
+                        for(interpIndex = colorComponent.length - 1; interpIndex >= 0; interpIndex--) {
+                            if(value == colorComponent[interpIndex][0]) {
+                                // no need to interpolate since we got an exact hit
+                                return colorComponent[interpIndex][1];
+                            } else if(value >= colorComponent[interpIndex][0]) {
+                                // found it
+                                break;
+                            }
+                        }
+
+                        // perform the interpolation
+                        var rangeStartVal = colorComponent[interpIndex][0];
+                        var rangeEndVal = colorComponent[interpIndex + 1][0];
+                        var totalDist = rangeEndVal - rangeStartVal;
+
+                        var endWeight = (value - rangeStartVal) / totalDist;
+                        var startWeight = (rangeEndVal - value) / totalDist;
+
+                        return colorComponent[interpIndex][2] * startWeight + colorComponent[interpIndex + 1][1] * endWeight;
+                    }
+                }
+
+                this.toRGBAString = function(value) {
+                    var r = Math.round(255 * interpolateColorComponent(cmSpecification.red, value));
+                    var g = Math.round(255 * interpolateColorComponent(cmSpecification.green, value));
+                    var b = Math.round(255 * interpolateColorComponent(cmSpecification.blue, value));
+                    var a = 1;
+                    if(typeof cmSpecification.alpha !== 'undefined') {
+                        a = interpolateColorComponent(cmSpecification.alpha, value);
+                    }
+
+                    return 'rgba(' + r + ',' + g + ',' + b + ',' + a + ')';
+                };
+            }
+
+            // several different color scheme choices
+            var kbColorData = {
+                red: [
+                    [0.0, 1.0, 1.0],
+                    [1.0 - 0.365079, 1.000000, 1.000000],
+                    [1.0, 0.0416, 0.0416]
+                ],
+                green: [
+                    [0.0, 1.0, 1.0],
+                    [1.0 - 0.746032, 1.000000, 1.000000],
+                    [1.0 - 0.365079, 0.000000, 0.000000],
+                    [1.0, 0.0, 0.0]
+                ],
+                blue: [
+                    [0.0, 50.0 / 255.0, 50.0 / 255.0],
+                    [1.0 - 0.746032, 0.000000, 0.000000],
+                    [1.0, 0.0, 0.0]
+                ],
+                alpha: 0.5
+            };
+
+            var kbColorFadedData = {
+                red: [
+                    [0.0, 1.0, 1.0],
+                    [1.0 - 0.365079, 1.000000, 1.000000],
+                    [1.0, 0.0416, 0.0416]
+                ],
+                green: [
+                    [0.0, 1.0, 1.0],
+                    [1.0 - 0.746032, 1.000000, 1.000000],
+                    [1.0 - 0.365079, 0.000000, 0.000000],
+                    [1.0, 0.0, 0.0]
+                ],
+                blue: [
+                    [0.0, 50.0 / 255.0, 50.0 / 255.0],
+                    [1.0 - 0.746032, 0.000000, 0.000000],
+                    [1.0, 0.0, 0.0]
+                ],
+                alpha: 0.1
+            };
+
+            var hotData = {
+                red: [
+                    [0., 0.0416, 0.0416],
+                    [0.365079, 1.000000, 1.000000],
+                    [1.0, 1.0, 1.0]
+                ],
+                green: [
+                    [0., 0., 0.],
+                    [0.365079, 0.000000, 0.000000],
+                    [0.746032, 1.000000, 1.000000],
+                    [1.0, 1.0, 1.0]
+                ],
+                blue: [
+                    [0., 0., 0.],
+                    [0.746032, 0.000000, 0.000000],
+                    [1.0, 1.0, 1.0]
+                ],
+                alpha: 0.75
+            };
+
+            var coolData = {
+                'red': [
+                    [0., 0., 0.],
+                    [1.0, 1.0, 1.0]
+                ],
+                'green': [
+                    [0., 1., 1.],
+                    [1.0, 0.,  0.]
+                ],
+                'blue': [
+                    [0., 1., 1.],
+                    [1.0, 1.,  1.]
+                ],
+                'alpha': 0.3
+            };
+
+            var colorMap = new ColorMap(kbColorData);
+            var fadedColorMap = new ColorMap(kbColorFadedData);
+            var colorMapCeiling = log10(1000);
+
+
+            function FilteredSelect(params /* select, filterInput, clearFilterButton, getObjectsFunc, maxOptionCount */) {
+                var selectedValue = null;
+                var filterValue = '';
+                var maxOptionCount = typeof params.maxOptionCount === 'undefined' ? 1000 : params.maxOptionCount;
+
+                function addOpt(select, optName, optText) {
+                    var opt = $(document.createElement('option'));
+                    opt.val(optName);
+                    opt.text(optText);
+                    select.append(opt);
+                    return opt;
+                }
+
+                this.getSelectedValue = function() {
+                    return selectedValue;
+                };
+
+                this.setSelectedValue = function(val) {
+                    selectedValue = val;
+                    params.select.val(val);
+                };
+
+                this.select = params.select;
+
+                this.valueChanged = null;
+
+                var self = this;
+                params.select.change(function() {
+                    selectedValue = params.select.val();
+                    if(self.valueChanged !== null) {
+                        self.valueChanged();
+                    }
+                });
+
+                this.refreshOptions = function() {
+                    params.select.empty();
+
+                    filterValue = params.filterInput.val();
+                    var filterToks = filterValue.split(/\s+/).filter(function(tok) {
+                        return tok.length >= 1;
+                    });
+
+                    var foundSelectedValue = false;
+                    var count = 0;
+                    params.getObjectsFunc().forEach(function(optObj) {
+                        if(count < maxOptionCount || selectedValue == optObj.id) {
+                            var passedFilter = filterToks.every(function(filterTok) {
+                                filterTok = filterTok.toLowerCase();
+                                return optObj.name.split(/\s+/).some(function(optTok) {
+                                    return optTok.toLowerCase().startsWith(filterTok);
+                                })
+                            });
+
+                            if(passedFilter) {
+                                count++;
+                                addOpt(params.select, optObj.id, optObj.name);
+                            }
+
+                            if(selectedValue == optObj.id) {
+                                foundSelectedValue = true;
+                            }
+                        }
+                    });
+
+                    // update the selected value if necessary
+                    if(selectedValue !== null) {
+                        if(foundSelectedValue) {
+                            params.select.val(selectedValue);
+                        } else {
+                            self.setSelectedValue(null);
+                        }
+                    }
+                };
+
+                params.clearFilterButton.click(function() {
+                    if(params.filterInput.val().length > 0) {
+                        params.filterInput.val('');
+                        self.refreshOptions();
+                    }
+                    params.filterInput.focus();
+                });
+
+                function filterChanged() {
+                    if(params.filterInput.val() !== filterValue) {
+                        self.refreshOptions();
+                    }
+                }
+
+                params.filterInput.keyup(filterChanged);
+                params.filterInput.change(filterChanged);
+            }
+
+
+            $(document).ready(function() {
+                //var sampleID = "F101";
+                //var sampleID = "8677";
+                var sampleID = null;
+                var geneID = null;
+
+                var detailsTableBody = $('#details-table-body');
+
+                var cursorStatusPopup = d3.select("#cursor-status");
+                var hideCursorPopup = function() {
+                    cursorStatusPopup.style("display", null);
+                };
+
+                // TODO user shouldn't have to do this toIntervalPairs thing
+                var toIntervalPairs = function(chrIntervalObjArray) {
+                    var intervalPairs = [];
+                    for(var i = 0; i < chrIntervalObjArray.length; i++) {
+                        if(chrIntervalObjArray[i].chr !== "M") {
+                            intervalPairs.push([chrIntervalObjArray[i].chr, chrIntervalObjArray[i]]);
+                        }
+                    }
+                    return new OrderedPairs(intervalPairs);
+                };
+
+                var svg = d3.select("#jaxleSVG");
+                svg.on('mouseout', hideCursorPopup);
+//                var chrSizes = toIntervalPairs(mm10ChrSizes);
+                var chrSizes = toIntervalPairs(hg19ChrSizes);
+                var genoCoords = new GenoCoords(chrSizes, degToRad(2));
+                var jaxlePlot = new JaxlePlot(genoCoords, svg);
+
+                // append a rect to ensure that we capture events wherever they happen (the default behavior of
+                // SVG is to just send events where you've rendered something
+                jaxlePlot.rootGroup
+                        .append("rect")
+                        .attr("x", -jaxlePlot.radius)
+                        .attr("y", -jaxlePlot.radius)
+                        .attr("width", jaxlePlot.radius * 2)
+                        .attr("height", jaxlePlot.radius * 2)
+                        .attr("fill", "none")
+                        .attr("pointer-events", "all");
+
+                var radius0 = jaxlePlot.radius - 150;
+                var radius1 = radius0 + 50;
+                var radius2 = radius1 + 20;
+                var radius3 = radius2 + 30;
+
+                var arcLines = [];
+                for(var i = 0; i < chrSizes.length; i++) {
+                    arcLines.push({
+                        chr: chrSizes.keys[i],
+                        startPos : chrSizes.valueAt(i).startPos,
+                        size : chrSizes.valueAt(i).size
+                    });
+                }
+
+                // draw cytobands
+//                jaxlePlot.drawArcs(radius1, 20, mm10CytoBands, function(node, currBand) {
+                jaxlePlot.drawArcs(radius1, 20, hg19CytoBands, function(node, currBand) {
+                    node.classed(currBand.cytoBandType, true);
+                });
+
+                jaxlePlot.drawArcLines(radius1, arcLines);
+
+                // draw ticks
+                jaxlePlot.drawTicks({
+                    radius: radius2,
+                    tickInterval: 10000000,
+                    tickSize: 10,
+                    ticksPerMajorTick: 5,
+                    ticksPerLabel: 5,
+                    labelFormatFunc: function(chr, pos) {
+                        return pos / 1000000;
+                    }
+                });
+
+                // draw labels
+                jaxlePlot.drawChrLabels({
+                    radius: radius3,
+                    labelFormatFunc: function(chr) {
+                        return "Chr" + chr;
+                    }
+                });
+
+                var allSampleIDs = [];
+                var sampleFilterSelect = new FilteredSelect({
+                    select: $('#sample-select'),
+                    filterInput: $('#sample-filter'),
+                    clearFilterButton: $('#sample-clear-filter-button'),
+                    getObjectsFunc: function() {
+                        console.log('getting sapmle IDs of length: ' + allSampleIDs.length);
+                        return allSampleIDs.map(function(id) {
+                            console.log(id);
+                            return {
+                                id: id.sample_id,
+                                name: id.sample_id
+                            };
+                        });
+                    }
+                });
+                sampleFilterSelect.valueChanged = function() {
+                    sampleID = sampleFilterSelect.getSelectedValue();
+                    if(sampleID !== null) {
+                        sampleID = sampleID.trim();
+                    }
+                    updateExpression();
+                    updateData();
+                };
+                $.getJSON("/all-samples.json", function(data) {
+                    allSampleIDs = data.sample_ids;
+                    sampleFilterSelect.refreshOptions();
+                });
+
+                var allGeneAnnotations = [];
+                var geneFilterSelect = new FilteredSelect({
+                    select: $('#gene-select'),
+                    filterInput: $('#gene-filter'),
+                    clearFilterButton: $('#gene-clear-filter-button'),
+                    getObjectsFunc: function() {
+                        return allGeneAnnotations.map(function(anno) {
+                            return {
+                                id: anno.gene_id,
+                                name: anno.gene_id + " " + anno.symbol + ": " + anno.chromosome + "@" + anno.start_pos_bp
+                            };
+                        });
+                    }
+                });
+                geneFilterSelect.valueChanged = function() {
+                    geneID = geneFilterSelect.getSelectedValue();
+                    if(geneID !== null) {
+                        geneID = geneID.trim();
+                    }
+                    updateData();
+                };
+                $.getJSON("/all-gene-info.json", function(data) {
+                    allGeneAnnotations = data.gene_info;
+                    geneFilterSelect.refreshOptions();
+                });
+
+                var histScale = d3.scale.linear().range([radius0, radius1 - 10]);
+                var histGroup = null;
+                function updateExpression() {
+                    if(sampleID !== null && sampleID.length >= 1) {
+                        $.getJSON("/log2expr-for-sample-" + sampleID + "/bin-size-1000000bp.json", function(data) {
+                            histScale.domain([0, data.max_expr]);
+                            var histVals = [];
+                            var binSize = data.bin_size_bp;
+                            $.each(data.chr_expr_bins, function(chr, log2ExprArr) {
+                                if(jaxlePlot.chrIsValid(chr)) {
+                                    log2ExprArr.forEach(function(log2Expr, i) {
+                                        histVals.push({
+                                            chr: chr,
+                                            startPos: i * binSize,
+                                            size: binSize,
+                                            value: log2Expr
+                                        });
+                                    });
+                                } else {
+                                    console.log('invalid chr: ' + chr);
+                                }
+                            });
+
+                            if(histGroup !== null) {
+                                histGroup.remove();
+                            }
+                            histGroup = jaxlePlot.drawHistogram({
+                                scale: histScale,
+                                data: histVals
+                            });
+                        });
+                    }
+                }
+
+                var chordGroup = null;
+                function updateData() {
+                    console.log("updating data for gene: " + geneID);
+                    if(sampleID !== null && sampleID.length >= 1 && geneID !== null && geneID.length >= 1) {
+                        $.getJSON("/multiread-weights-" + sampleID + "/gene-" + geneID + ".json", function(data) {
+                            detailsTableBody.empty();
+
+                            var hilightID = null;
+                            var persistentHilightID = null;
+                            var chordData = [];
+                            var refChr = data.query_gene_info.chromosome;
+                            var refPos = (data.query_gene_info.start_pos_bp + data.query_gene_info.end_pos_bp) / 2;
+                            var geneMap = {};
+
+                            function updateHilight() {
+                                $.each(geneMap, function(geneID, geneMapEntry) {
+                                    var winningID = hilightID;
+                                    if(winningID === null) {
+                                        winningID = persistentHilightID;
+                                    }
+                                    if(winningID === null || winningID === geneID) {
+                                        geneMapEntry.row.css('background-color', geneMapEntry.color);
+                                        geneMapEntry.chordShape.style('stroke', geneMapEntry.color);
+                                    } else {
+                                        geneMapEntry.row.css('background-color', geneMapEntry.fadedColor);
+                                        geneMapEntry.chordShape.style('stroke', geneMapEntry.fadedColor);
+                                    }
+                                });
+                            }
+
+                            data.multiread_genes.forEach(function(currGene) {
+                                var currChr = currGene.chromosome;
+
+                                if(jaxlePlot.chrIsValid(refChr) && jaxlePlot.chrIsValid(currChr)) {
+                                    var currGeneMapEntry = {};
+                                    geneMap[currGene.gene_id] = currGeneMapEntry;
+
+                                    var colorVal = log10(currGene.read_count) / colorMapCeiling;
+                                    var colorStr = colorMap.toRGBAString(colorVal);
+                                    currGeneMapEntry.color = colorStr;
+                                    currGeneMapEntry.fadedColor = fadedColorMap.toRGBAString(colorVal);
+
+                                    var currPos = (currGene.start_pos_bp + currGene.end_pos_bp) / 2;
+                                    chordData.push({
+                                        source: {chr: refChr, pos: refPos},
+                                        dest: {chr: currChr, pos: currPos},
+                                        destGene: currGene
+                                    });
+
+                                    var tr = $(document.createElement('tr'));
+                                    tr.mouseover(function() {
+                                        hilightID = currGene.gene_id;
+                                        updateHilight();
+                                    });
+                                    tr.mouseout(function() {
+                                        hilightID = null;
+                                        updateHilight();
+                                    });
+                                    tr.click(function() {
+                                        if(persistentHilightID === currGene.gene_id) {
+                                            hilightID = null;
+                                            persistentHilightID = null;
+                                        } else {
+                                            hilightID = currGene.gene_id;
+                                            persistentHilightID = currGene.gene_id;
+                                        }
+                                        updateHilight();
+                                    });
+                                    tr.css('background-color', colorStr);
+                                    currGeneMapEntry.row = tr;
+
+                                    var td = $(document.createElement('td'));
+                                    td.text(currGene.gene_id);
+                                    tr.append(td);
+
+                                    var td = $(document.createElement('td'));
+                                    td.text(currGene.symbol);
+                                    tr.append(td);
+
+                                    td = $(document.createElement('td'));
+                                    td.text(currGene.chromosome);
+                                    tr.append(td);
+
+                                    td = $(document.createElement('td'));
+                                    td.text(currGene.start_pos_bp);
+                                    tr.append(td);
+
+                                    td = $(document.createElement('td'));
+                                    td.text(currGene.read_count);
+                                    tr.append(td);
+
+                                    detailsTableBody.append(tr);
+                                }
+                            });
+
+                            if(chordGroup !== null) {
+                                chordGroup.remove();
+                            }
+
+                            // reverse the order so that high read count chords end up on top
+                            chordData.reverse();
+                            chordGroup = jaxlePlot.drawChordLines(radius0, chordData, function(path, chordDataItem) {
+                                var currGene = chordDataItem.destGene;
+                                function showPopup() {
+                                    console.log('Mouse over:');
+                                    console.log(currGene);
+                                    $('#gene-id-out').text(currGene.gene_id);
+                                    $('#gene-symbol-out').text(currGene.symbol);
+                                    $('#chr').text(currGene.chromosome);
+                                    $('#genopos').text(currGene.start_pos_bp);
+                                    $('#weight').text(currGene.read_count);
+
+                                    var popupOffset = 20;
+                                    var pastCenterX = false;
+                                    var pastCenterY = false;
+                                    var xPos = d3.event.pageX + (pastCenterX ? -popupOffset : popupOffset);
+                                    var yPos = d3.event.pageY + (pastCenterY ? -popupOffset : popupOffset);
+                                    var xTrans = pastCenterX ? -100 : 0;
+                                    var yTrans = pastCenterY ? -100 : 0;
+                                    var transformStr = "translate(" + xTrans + "%," + yTrans + "%)";
+                                    cursorStatusPopup.style({
+                                        display: "block",
+                                        top: yPos + "px",
+                                        left: xPos + "px",
+                                        transform: transformStr,
+                                        "-webkit-transform": transformStr});
+
+                                    hilightID = currGene.gene_id;
+                                    updateHilight();
+                                }
+                                path.on("mouseover", showPopup);
+                                path.on("mousemove", showPopup);
+                                path.on("mouseout", function() {
+                                    hilightID = null;
+                                    updateHilight();
+                                });
+                                path.on("click", function() {
+                                    if(persistentHilightID === currGene.gene_id) {
+                                        hilightID = null;
+                                        persistentHilightID = null;
+                                    } else {
+                                        hilightID = currGene.gene_id;
+                                        persistentHilightID = currGene.gene_id;
+                                    }
+                                    updateHilight();
+                                });
+                                path.style('stroke', geneMap[currGene.gene_id].color);
+
+                                geneMap[currGene.gene_id].chordShape = path;
+                            });
+                        });
+                    }
+                }
+
+                updateExpression();
+            });
+        </script>
+    </head>
+
+    <body>
+        <div class="container">
+            <h1>Multiread Sharing Profile</h1>
+            <div class="col-md-6">
+                <h3>Sample:</h3>
+                <div class="input-group">
+                    <input type="text" class="form-control option-filter-input" id="sample-filter" placeholder="Sample Filter">
+                    <span class="input-group-btn">
+                        <button id="sample-clear-filter-button" class="btn btn-default option-filter-clear" type="button">
+                            <span class="glyphicon glyphicon-remove"></span>
+                        </button>
+                    </span>
+                </div>
+
+                <select id="sample-select" size="10" class="form-control option-filter-list"></select>
+            </div>
+
+            <div class="col-md-6">
+                <h3>Gene:</h3>
+                <div class="input-group">
+                    <input type="text" class="form-control option-filter-input" id="gene-filter" placeholder="Gene Filter">
+                    <span class="input-group-btn">
+                        <button id="gene-clear-filter-button" class="btn btn-default option-filter-clear" type="button">
+                            <span class="glyphicon glyphicon-remove"></span>
+                        </button>
+                    </span>
+                </div>
+
+                <select id="gene-select" size="10" class="form-control option-filter-list"></select>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <svg id="jaxleSVG" height="800" width="800" style="display: block; margin-left: auto; margin-right: auto;"></svg>
+                </div>
+            </div>
+
+            <div class="row">
+                <div class="col-md-12">
+                    <div>
+                        <table class="table table-condensed">
+                            <thead>
+                            <tr>
+                                <th>ID</th>
+                                <th>Symbol</th>
+                                <th>Chromosome</th>
+                                <th>Genome Position</th>
+                                <th>Read Count</th>
+                            </tr>
+                            </thead>
+                            <tbody id="details-table-body">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <div id="cursor-status">
+                <table>
+                    <tr><td>ID:</td>                    <td id="gene-id-out"></td></tr>
+                    <tr><td>Symbol:</td>                <td id="gene-symbol-out"></td></tr>
+                    <tr><td>Chromosome:</td>            <td id="chr"></td></tr>
+                    <tr><td>Genome Position:</td>       <td id="genopos"></td></tr>
+                    <tr><td>Read Count:</td>            <td id="weight"></td></tr>
+                </table>
+            </div>
+        </div>
+    </body>
+</html>

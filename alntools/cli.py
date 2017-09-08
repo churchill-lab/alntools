@@ -4,6 +4,7 @@ import click
 
 from . import alntools
 from . import utils
+from . import viewer
 from . import __logo_text__, __version__
 
 
@@ -102,6 +103,43 @@ def range(input, range_file, targets, directory, verbose):
     utils.configure_logging(verbose)
     files = utils.get_bam_files(input)
     alntools.generate_bam_ranges(files, range_file, targets, directory)
+
+
+@cli.command('emase2db_configure', options_metavar='<options>', short_help='generate config file for viewer')
+@click.argument('sample_file', metavar='sample_file', type=click.Path(resolve_path=True, dir_okay=False))
+@click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=False), help="top level input directory")
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def emase2db_config(sample_file, directory, verbose):
+    """
+    Generate config file for viewer.
+    """
+    utils.configure_logging(verbose)
+    alntools.emase2db_config(sample_file, directory)
+
+
+@cli.command('emase2db', options_metavar='<options>', short_help='generate database file for viewer')
+@click.argument('sample_file', metavar='sample_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.argument('gene_file', metavar='gene_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.argument('db_file', metavar='db_file', type=click.Path(resolve_path=True, dir_okay=False))
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def emase2db(sample_file, gene_file, db_file, verbose):
+    """
+    Generate database file for viewer
+    """
+    utils.configure_logging(verbose)
+    alntools.emase2db(sample_file, gene_file, db_file)
+
+
+@cli.command('view', options_metavar='<options>', short_help='generate database file for viewer')
+@click.argument('db_file', metavar='db_file', type=click.Path(resolve_path=True, dir_okay=False))
+@click.option('-p', '--port', default=8888, help="port number")
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def emase2db(db_file, port, verbose):
+    """
+    Generate database file for viewer
+    """
+    utils.configure_logging(verbose)
+    viewer.start(db_file, port)
 
 if __name__ == '__main__':
     cli()
