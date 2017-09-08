@@ -105,7 +105,7 @@ def range(input, range_file, targets, directory, verbose):
     alntools.generate_bam_ranges(files, range_file, targets, directory)
 
 
-@cli.command('emase2db_configure', options_metavar='<options>', short_help='generate config file for viewer')
+@cli.command('emase2db_configure', options_metavar='<options>', short_help='generate sample file for viewer')
 @click.argument('sample_file', metavar='sample_file', type=click.Path(resolve_path=True, dir_okay=False))
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=False), help="top level input directory")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
