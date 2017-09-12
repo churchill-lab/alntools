@@ -436,7 +436,7 @@ def get_num_shared_multireads(alnmat):
     return cntmat
 
 
-def emase2db(sample_file, db_file, gene_file):
+def emase2db(sample_file, gene_file, db_file):
     start_time = time.time()
 
     LOG.info('Using sample file: {}'.format(sample_file))
