@@ -9,5 +9,7 @@ include README.rst
 recursive-include tests *
 recursive-exclude * __pycache__
 recursive-exclude * *.py[co]
+recursive-include alntools/templates *
+recursive-include alntools/static *
 
 recursive-include docs *.rst conf.py Makefile make.bat *.jpg *.png *.gif
