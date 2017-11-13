@@ -75,7 +75,10 @@ def parse_emase(emase_filename):
     em.haplotypes_list = apm.hname
     em.haplotypes_dict = {hap: idx for idx, hap in enumerate(em.haplotypes_list)}
 
-    em.ec_list = list(apm.rname)
+    if apm.rname is None:
+        em.ec_list = np.arange(apm.num_reads)
+    else:
+        em.ec_list = list(apm.rname)
     em.ec_counts_list = list(apm.count)
 
     LOG.debug('Adding {:,} elements'.format(len(em.ec_list)))
