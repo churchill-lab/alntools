@@ -747,15 +747,9 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                       read_names=ec_ids,
                       cell_names=final.CRS.keys())
 
-            print(final.haplotypes)
-
             for h in xrange(0, len(final.haplotypes)):
                 d = np.ones(len(ec_arr[h]))
-                print(ec_arr[h])
-                print(target_arr[h])
                 apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
-
-            print(apm.data)
 
             # now ER by UR
             # OLD: apm.count = final.ec.values()
@@ -773,9 +767,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 i += 1
 
             apm.count = npa #.reshape((len(final.ec), len(final.CRS)))
-
-            LOG.debug(len(apm.count))
-
 
             LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                 utils.format_time(start_time, time.time())))
