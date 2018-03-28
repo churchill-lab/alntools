@@ -8,7 +8,10 @@ import tempfile
 import time
 
 #from . import bam_utils_new as bam_utils
+from .AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 from . import bam_utils
+from . import bam_utils_multisample
+from . import barcode_utils
 from . import utils
 from . import db_utils
 
@@ -16,8 +19,6 @@ from . import db_utils
 import numpy as np
 from struct import pack
 
-import emase
-from emase import AlignmentPropertyMatrix as APM
 from scipy.sparse import coo_matrix, diags
 
 LOG = utils.get_logger()
@@ -65,7 +66,7 @@ def parse_emase(emase_filename):
 
     LOG.debug("Creating EMASE APM")
 
-    apm = emase.AlignmentPropertyMatrix(h5file=emase_filename)
+    apm = APM(h5file=emase_filename)
 
     LOG.debug("EMASE APM created")
 
@@ -377,8 +378,16 @@ def bam2ec(bam_filename, ec_filename, num_chunks=0, target_filename=None, temp_d
     bam_utils.convert(bam_filename, ec_filename, num_chunks=num_chunks, target_filename=target_filename, emase=False, temp_dir=temp_dir, range_filename=range_filename)
 
 
+def bam2ec_multisample(bam_filename, ec_filename, num_chunks=0, target_filename=None, temp_dir=None, range_filename=None, minimum_count=-1):
+    bam_utils_multisample.convert(bam_filename, ec_filename, num_chunks=num_chunks, target_filename=target_filename, emase=False, temp_dir=temp_dir, range_filename=range_filename, minimum_count=minimum_count)
+
+
 def bam2emase(bam_filename, emase_filename, num_chunks=0, target_filename=None, temp_dir=None):
     bam_utils.convert(bam_filename, emase_filename, num_chunks=num_chunks, target_filename=target_filename, emase=True, temp_dir=temp_dir)
+
+
+def bam2emase_multisample(bam_filename, emase_filename, num_chunks=0, target_filename=None, temp_dir=None, minimum_count=-1):
+    bam_utils_multisample.convert(bam_filename, emase_filename, num_chunks=num_chunks, target_filename=target_filename, emase=True, temp_dir=temp_dir, minimum_count=minimum_count)
 
 
 def split_bam(bam_filename, num_chunks, directory=None):
@@ -509,3 +518,11 @@ def emase2db(sample_file, gene_file, db_file):
         LOG.error('Error: {}'.format(str(e)))
 
     LOG.info("Database created in {}".format(utils.format_time(start_time, time.time())))
+
+
+
+def parsefastqtest(input_file, chunks, dir):
+    start_time = time.time()
+    LOG.info('Using fastq file: {}'.format(input_file))
+    barcode_utils.parse(input_file, chunks, dir)
+    LOG.info("FAstq file parsed in {}".format(utils.format_time(start_time, time.time())))

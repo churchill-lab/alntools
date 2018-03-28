@@ -36,34 +36,44 @@ def split(bam_file, number, directory, verbose):
 
 
 @cli.command('bam2ec', options_metavar='<options>', short_help='convert a BAM file to EC')
-@click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=True))
 @click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
 @click.option('-c', '--chunks', default=0, help="number of chunks to process")
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
 @click.option('--range', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True), help="range file")
+@click.option('-m', '--mincount', default=2000, help="minimum count")
+@click.option('--multisample', is_flag=True)
 @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def bam2ec(bam_file, ec_file, chunks, targets, directory, range, verbose):
+def bam2ec(bam_file, ec_file, chunks, targets, directory, range, mincount, multisample, verbose):
     """
     Convert a BAM file (bam_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
-    alntools.bam2ec(bam_file, ec_file, chunks, targets, directory, range)
+    if multisample:
+        alntools.bam2ec_multisample(bam_file, ec_file, chunks, targets, directory, range, mincount)
+    else:
+        alntools.bam2ec(bam_file, ec_file, chunks, targets, directory, range)
 
 
 @cli.command('bam2emase', options_metavar='<options>', short_help='convert a BAM file to APM')
-@click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=True))
 @click.argument('emase_file', metavar='emase_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
 @click.option('-c', '--chunks', default=0, help="number of chunks to process")
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
+@click.option('-m', '--mincount', default=2000, help="minimum count")
+@click.option('--multisample', is_flag=True)
 @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def bam2emase(bam_file, emase_file, chunks, targets, directory, verbose):
+def bam2emase(bam_file, emase_file, chunks, targets, directory, mincount, multisample, verbose):
     """
     Convert a BAM file (bam_file) to an EMASE file (emase_file).
     """
     utils.configure_logging(verbose)
-    alntools.bam2emase(bam_file, emase_file, chunks, targets, directory)
+    if multisample:
+        alntools.bam2emase_multisample(bam_file, emase_file, chunks, targets, directory, mincount)
+    else:
+        alntools.bam2emase(bam_file, emase_file, chunks, targets, directory)
 
 
 @cli.command('emase2ec', options_metavar='<options>', short_help='convert an EMASE file to EC')
@@ -134,12 +144,25 @@ def emase2db(sample_file, gene_file, db_file, verbose):
 @click.argument('db_file', metavar='db_file', type=click.Path(resolve_path=True, dir_okay=False))
 @click.option('-p', '--port', default=8888, help="port number")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def emase2db(db_file, port, verbose):
+def v(db_file, port, verbose):
     """
     Generate database file for viewer
     """
     utils.configure_logging(verbose)
     viewer.start(db_file, port)
+
+
+@cli.command('fastqtest', options_metavar='<options>', short_help='test')
+@click.argument('input', metavar='input', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.option('-c', '--chunks', default=0, help="number of chunks to process")
+@click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def fastqtest(input, chunks, directory, verbose):
+    """
+    Create range file for specified FASTq files
+    """
+    utils.configure_logging(verbose)
+    alntools.parsefastqtest(input, chunks, directory)
 
 if __name__ == '__main__':
     cli()
