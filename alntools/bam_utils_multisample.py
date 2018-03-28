@@ -544,6 +544,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         if not final.init:
             final = result
             final.init = True
+            final.ec_idx = OrderedDict()
             for eckey, crdict in result.ec.iteritems():
                 final.ec_idx[eckey] = len(final.ec_idx)
                 for crkey, count in crdict.iteritems():
@@ -583,12 +584,9 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                             final.ec[eckey][crkey] = count
                             counter_test += 1
                     else:
+                        final.ec_idx[eckey] = len(final.ec_idx)
                         final.ec[eckey] = {crkey: count}
                         counter_test += 1
-
-                final.ec_idx[eckey] = len(final.ec_idx)
-
-            LOG.debug('counter_test={}'.format(counter_test))
 
             LOG.debug("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
             LOG.debug("CHUNK {}: # Total CRs: {:,}".format(idx, len(final.CRS)))
@@ -641,6 +639,53 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
     LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
+    LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(final.ec_idx)))
+    LOG.debug("# Equivalence Class Max Index: {:,}".format(max(final.ec_idx.values())))
+    LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
+
+    LOG.info("FILTERING CRS: {:,}".format(len(final.CRS)))
+
+    # filter everything
+    if minimum_count > 0:
+        # find the new CRS
+        final.CRS = OrderedDict()
+        for CR, CR_total in cr_totals.iteritems():
+            if CR_total >= minimum_count:
+                final.CRS[CR] = CR_total
+
+        # remove invalid CRS from ECs
+        new_ecs = OrderedDict()
+        new_ec_idx = OrderedDict()
+        new_ec_totals = {}
+        # loop through ecs
+        for eckey, crs in final.ec.iteritems():
+            # potential new ec
+            ec = {}
+            total = 0
+            # loop through valid CRS and and if valid
+            for crkey, crcount in crs.iteritems():
+
+                if crkey in final.CRS:
+                    ec[crkey] = crs[crkey]
+                    total += crcount
+
+            # only add to new ecs if there is anything
+            if len(ec) > 0:
+                new_ecs[eckey] = ec
+                new_ec_idx[eckey] = len(new_ec_idx)
+                new_ec_totals[eckey] = total
+
+        ec_totals = new_ec_totals
+        final.ec = new_ecs
+        final.ec_idx = new_ec_idx
+
+    #LOG.info("# Total Alignments: {:,}".format(final.all_alignments))
+    LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
+    LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
+    LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
+    LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
+    LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(final.ec_idx)))
+    LOG.debug("# Equivalence Class Max Index: {:,}".format(max(final.ec_idx.values())))
     LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
 
     if range_filename:
@@ -677,15 +722,10 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     except OSError:
         pass
 
-    LOG.info("FILTERING CRS: {:,}".format(len(final.CRS)))
-
-    # filter CRS
-    final.CRS = OrderedDict()
-    for CR, CR_total in cr_totals.iteritems():
-        if minimum_count > 0 and CR_total > minimum_count:
-            final.CRS[CR] = CR_total
 
     LOG.info("CRS: {:,}".format(len(final.CRS)))
+    ec_arr_max = -1
+    target_arr_max = -1
 
     if emase:
         try:
@@ -713,6 +753,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 for idx in arr_target_idx:
                     temp_main_targets.add(final.target_idx_to_main_target[idx])
 
+                #print(k, temp_main_targets)
+
                 # loop through the targets and haplotypes to get the bits
                 for main_target in temp_main_targets:
                     # main_target is not an index, but a value like 'ENMUST..001'
@@ -738,6 +780,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
                             ec_arr[i].append(final.ec_idx[k])
                             target_arr[i].append(final.main_targets[main_target])
+                            ec_arr_max = max(ec_arr_max, final.ec_idx[k])
+                            target_arr_max = max(target_arr_max, final.main_targets[main_target])
 
             LOG.debug('APM shape={}'.format(new_shape))
 
@@ -747,8 +791,16 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                       read_names=ec_ids,
                       cell_names=final.CRS.keys())
 
+            print('ec_arr_max=', ec_arr_max)
+            print('target_arr_max=', target_arr_max)
+
             for h in xrange(0, len(final.haplotypes)):
                 d = np.ones(len(ec_arr[h]))
+                print('len(d)=', len(d))
+                print('len(final.ec)=', len(final.ec))
+                print('len(final.main_targets)=', len(final.main_targets))
+                print('len(ec_arr[h])=', len(ec_arr[h]))
+                print('len(target_arr[h])=', len(target_arr[h]))
                 apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
 
             # now ER by UR
@@ -759,8 +811,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             npa = np.zeros((len(final.ec), len(final.CRS)))
             i = 0
             for k, v in final.ec.iteritems():
-                if i % 10 == 0:
-                    LOG.debug(i)
+                #if i % 10 == 0:
+                #    LOG.debug(i)
                 for idx, CRS in final.CRS.iteritems():
                     if CRS in v:
                         npa[i:idx] = v[CRS]
@@ -779,7 +831,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
-        except ValueError as e:
+        except Exception as e:
             LOG.fatal("ERROR: {}".format(str(e)))
             raise e
     else:
