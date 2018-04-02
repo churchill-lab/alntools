@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict, namedtuple
-from struct import pack
+from contextlib import closing
+
 import multiprocessing
 import os
 import sqlite3
 import struct
-import sys
 import time
-from contextlib import closing
-from .AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-from . import utils
 
 from Bio import bgzf
+
 import pysam
-from scipy.sparse import coo_matrix
-import numpy as np
+
+from alntools import utils
 
 try:
     xrange
@@ -133,8 +131,8 @@ def process_parse_fastq(cp):
 
 
             except Exception as e1:
-                print 'ERROR'
-                print str(e1)
+                print('ERROR')
+                print(str(e1))
 
             LOG.info(
                 "DONE Process ID: {}, File: {}, {:,} Fastx records processed".format(
@@ -519,7 +517,7 @@ def calculate_chunks(filename, num_chunks):
                 # all others
                 if offset[1] == 0:
                     # bgzf boundary
-                    print '****************HUH'
+                    print('****************HUH')
                     return
 
                 begin_read_offset = bgzf.make_virtual_offset(
@@ -542,7 +540,7 @@ def calculate_chunks(filename, num_chunks):
         return params
 
     except Exception as e:
-        print 'calculate_chunks error: {}'.format(str(e))
+        print('calculate_chunks error: {}'.format(str(e)))
 
 
 

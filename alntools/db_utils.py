@@ -1,4 +1,6 @@
+# -*- coding: utf-8 -*-
 from collections import OrderedDict
+
 import sqlite3
 
 expected_gene_info_header = ['GeneID', 'Symbol', 'Chr', 'Start', 'End', 'Strand']

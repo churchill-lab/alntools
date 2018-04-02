@@ -1,25 +1,23 @@
 # -*- coding: utf-8 -*-
-
 from collections import OrderedDict
+from struct import pack
+
 import csv
 import os
 import re
 import tempfile
 import time
 
-#from . import bam_utils_new as bam_utils
-from .AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-from . import bam_utils
-from . import bam_utils_multisample
-from . import barcode_utils
-from . import utils
-from . import db_utils
-
-
 import numpy as np
-from struct import pack
 
 from scipy.sparse import coo_matrix, diags
+
+from alntools.matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
+from alntools import bam_utils
+from alntools import db_utils
+from alntools import bam_utils_multisample
+from alntools import barcode_utils
+from alntools import utils
 
 LOG = utils.get_logger()
 

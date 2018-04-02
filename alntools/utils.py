@@ -12,8 +12,8 @@
 # logging.INFO is user debug
 # logging.DEBUG is developer debug
 #
-from past.builtins import xrange
 from collections import OrderedDict
+from past.builtins import xrange
 
 import logging
 import os

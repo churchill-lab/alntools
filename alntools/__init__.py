@@ -16,4 +16,4 @@ __logo_text__ = """
 
 """
 
-__all__ = ['utils']
+#__all__ = ['utils', 'matrix']

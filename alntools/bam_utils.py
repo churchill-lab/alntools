@@ -7,13 +7,14 @@ import struct
 import sys
 import time
 
-from . import utils
-
 from Bio import bgzf
-from .AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-import pysam
 from scipy.sparse import coo_matrix
+
 import numpy as np
+import pysam
+
+from alntools.matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
+from alntools import utils
 
 try:
     xrange

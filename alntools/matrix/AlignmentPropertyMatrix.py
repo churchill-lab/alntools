@@ -1,10 +1,10 @@
 #!/usr/bin/env python
-
 import copy
 import tables
 import numpy as np
 from scipy.sparse import lil_matrix, coo_matrix, csc_matrix, csr_matrix
-from .Sparse3DMatrix import Sparse3DMatrix
+
+from alntools.matrix.Sparse3DMatrix import Sparse3DMatrix
 
 try:
     xrange

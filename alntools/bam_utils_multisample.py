@@ -9,13 +9,14 @@ import struct
 import sys
 import time
 
-from . import utils
-from .AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 from Bio import bgzf
-
-import pysam
 from scipy.sparse import coo_matrix
+
 import numpy as np
+import pysam
+
+from alntools import utils
+from alntools.matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 
 try:
     xrange

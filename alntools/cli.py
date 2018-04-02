@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
+
 import click
 
-from . import alntools
-from . import utils
-from . import viewer
-from . import __logo_text__, __version__
+from alntools import methods
+from alntools import utils
+from alntools import viewer
+from alntools import __logo_text__, __version__
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])
@@ -32,7 +33,7 @@ def split(bam_file, number, directory, verbose):
     Convert a BAM file (bam_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
-    alntools.split_bam(bam_file, number, directory)
+    methods.split_bam(bam_file, number, directory)
 
 
 @cli.command('bam2ec', options_metavar='<options>', short_help='convert a BAM file to EC')
@@ -51,9 +52,9 @@ def bam2ec(bam_file, ec_file, chunks, targets, directory, range, mincount, multi
     """
     utils.configure_logging(verbose)
     if multisample:
-        alntools.bam2ec_multisample(bam_file, ec_file, chunks, targets, directory, range, mincount)
+        methods.bam2ec_multisample(bam_file, ec_file, chunks, targets, directory, range, mincount)
     else:
-        alntools.bam2ec(bam_file, ec_file, chunks, targets, directory, range)
+        methods.bam2ec(bam_file, ec_file, chunks, targets, directory, range)
 
 
 @cli.command('bam2emase', options_metavar='<options>', short_help='convert a BAM file to APM')
@@ -71,9 +72,9 @@ def bam2emase(bam_file, emase_file, chunks, targets, directory, mincount, multis
     """
     utils.configure_logging(verbose)
     if multisample:
-        alntools.bam2emase_multisample(bam_file, emase_file, chunks, targets, directory, mincount)
+        methods.bam2emase_multisample(bam_file, emase_file, chunks, targets, directory, mincount)
     else:
-        alntools.bam2emase(bam_file, emase_file, chunks, targets, directory)
+        methods.bam2emase(bam_file, emase_file, chunks, targets, directory)
 
 
 @cli.command('emase2ec', options_metavar='<options>', short_help='convert an EMASE file to EC')
@@ -85,7 +86,7 @@ def emase2ec(emase_file, ec_file, verbose):
     Convert an EMASE file (emase_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
-    alntools.emase2ec(emase_file, ec_file)
+    methods.emase2ec(emase_file, ec_file)
 
 
 @cli.command('ec2emase', options_metavar='<options>', short_help='convert an EC file to EMASE')
@@ -97,7 +98,7 @@ def ec2emase(ec_file, emase_file, verbose):
     Convert an EC file (ec_file) to an EMASE file (emase_file).
     """
     utils.configure_logging(verbose)
-    alntools.ec2emase(ec_file, emase_file)
+    methods.ec2emase(ec_file, emase_file)
 
 
 @cli.command('range', options_metavar='<options>', short_help='test')
@@ -112,7 +113,7 @@ def range(input, range_file, targets, directory, verbose):
     """
     utils.configure_logging(verbose)
     files = utils.get_bam_files(input)
-    alntools.generate_bam_ranges(files, range_file, targets, directory)
+    methods.generate_bam_ranges(files, range_file, targets, directory)
 
 
 @cli.command('emase2db_configure', options_metavar='<options>', short_help='generate sample file for viewer')
@@ -124,7 +125,7 @@ def emase2db_config(sample_file, directory, verbose):
     Generate config file for viewer.
     """
     utils.configure_logging(verbose)
-    alntools.emase2db_config(sample_file, directory)
+    methods.emase2db_config(sample_file, directory)
 
 
 @cli.command('emase2db', options_metavar='<options>', short_help='generate database file for viewer')
@@ -137,7 +138,7 @@ def emase2db(sample_file, gene_file, db_file, verbose):
     Generate database file for viewer
     """
     utils.configure_logging(verbose)
-    alntools.emase2db(sample_file, gene_file, db_file)
+    methods.emase2db(sample_file, gene_file, db_file)
 
 
 @cli.command('view', options_metavar='<options>', short_help='generate database file for viewer')
@@ -162,7 +163,8 @@ def fastqtest(input, chunks, directory, verbose):
     Create range file for specified FASTq files
     """
     utils.configure_logging(verbose)
-    alntools.parsefastqtest(input, chunks, directory)
+    methods.parsefastqtest(input, chunks, directory)
+
 
 if __name__ == '__main__':
     cli()
