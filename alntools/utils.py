@@ -22,26 +22,23 @@ logging.basicConfig(format='[alntools] [%(asctime)s] %(message)s', datefmt='%m/%
 
 
 def get_logger():
-    """
-    Get the :class:`logging.Logger`.
+    """Get the :class:`logging.Logger`.
 
-    :return: :class:`logging.Logger`
+    Returns:
+        :class:`logging.Logger`
     """
     return logging.getLogger(__name__)
 
 
 def configure_logging(level):
-    """
-    Configure the :class:`Logger`.
+    """Configure the :class:`Logger`.
 
     - 0 = WARNING
     - 1 = INFO
     - 2 = DEBUG
 
-    :func:`get_logger`.
-
-    :param int level: logging level
-    :return: None
+    Args:
+        level (int): The level to debug.
     """
     if level == 0:
         get_logger().setLevel(logging.WARN)
@@ -52,12 +49,15 @@ def configure_logging(level):
 
 
 def format_time(start, end):
-    """
-    Format length of time between ``start`` and ``end``.
+    """Format length of time between ``start`` and ``end``.
 
-    :param start: the start time
-    :param end: the end time
-    :return: a formatted string of hours, minutes, and seconds
+    Args:
+        start (:class:`time.time`): The start time.
+        end (:class:`time.time`): The end time.
+
+    Returns:
+        str: A formatted string of hours, minutes, and seconds.
+
     """
     hours, rem = divmod(end - start, 3600)
     minutes, seconds = divmod(rem, 60)
@@ -65,12 +65,14 @@ def format_time(start, end):
 
 
 def partition(lst, n):
-    """
-    Split lst into n partitions.
+    """Split ``lst`` into ``n`` partitions.
 
-    :param lst: the list
-    :param n: the number of partitions
-    :return: a list of length n, each containing a sublist
+    Args:
+        lst (list): A list of values to be partitioned.
+        n (int): The number of partitions.
+
+    Returns:
+        list: A list of length n, each containing a sublist.
     """
     q, r = divmod(len(lst), n)
     indices = [q*i + min(i, r) for i in xrange(n+1)]
@@ -86,8 +88,7 @@ def partition(lst, n):
 
 
 def list_to_int(lst):
-    """
-    Convert a list (assuming values of 0 or 1) into an integer
+    """Convert a list (assuming values of 0 or 1) into an integer
 
     Example: [0, 0, 0] => 0  (1 * 0 + 2 * 0 + 3 * 0)
              [0, 1, 0] => 2  (1 * 0 + 2 * 1 + 3 * 0)
@@ -95,8 +96,11 @@ def list_to_int(lst):
              [1, 1, 1] => 7  (1 * 1 + 2 * 1 + 3 * 1)
              [1, 0, 0, 1, 1, 1, 1] => 121
 
-    :param lst: the list
-    :return: an integer
+    Args:
+        lst (list): The list.
+
+    Returns:
+        int: The decimal representation.
     """
     c = 0
     for i, on_off in enumerate(lst):
@@ -106,8 +110,7 @@ def list_to_int(lst):
 
 
 def int_to_list(c, size):
-    """
-    Convert an integer to a list on length size
+    """Convert an integer to a list on length size
 
     Example: [0, 0, 0] => 0  (1 * 0 + 2 * 0 + 3 * 0)
              [0, 1, 0] => 2  (1 * 0 + 2 * 1 + 3 * 0)
@@ -115,9 +118,13 @@ def int_to_list(c, size):
              [1, 1, 1] => 7  (1 * 1 + 2 * 1 + 3 * 1)
              [1, 0, 0, 1, 1, 1, 1] => 121
 
-    :param c: the list
-    :param size: the list
-    :return: a list
+    Args:
+        c (int): The integer value.
+        size: The size of the list to be returned.
+
+    Returns:
+        list: A list of size ``n`` representing the value ``c``.
+
     """
     ret = [0] * size
     for i in xrange(0, size):
@@ -127,14 +134,16 @@ def int_to_list(c, size):
 
 
 def bytes_from_file(read_filename, write_filename, offset=0, bytes_size=-1):
-    """
-    Read bytes from a file and append them onto another file.
+    """Read bytes from a file and append them onto another file.
 
-    :param read_filename: the name of the file to read from
-    :param write_filename: the name of the file to write to
-    :param offset: the number of bytes to offset (seek)
-    :param bytes_size: the number of bytes to read, -1 = to end of file
-    :return:
+    Args:
+        read_filename (str): The name of the file to read from.
+        write_filename (str): The name of the file to write to.
+        offset (int): The number of bytes to offset (seek).
+        bytes_size: The number of bytes to read, -1 = to end of file.
+
+    Returns:
+        None
     """
     with open(read_filename, "rb") as fr:
         if offset > 0:
@@ -150,10 +159,14 @@ def bytes_from_file(read_filename, write_filename, offset=0, bytes_size=-1):
 
 
 def parse_targets(target_file):
-    """
+    """Parse a file and return the targets.
 
-    :param target_file:
-    :return:
+    Args:
+        target_file (str): The name of the file.
+
+    Returns:
+        OrderedDict: The target name as the key and the insertion order as the
+            value.
     """
     targets = OrderedDict()
     with open(target_file, 'r') as f:
@@ -166,9 +179,10 @@ def parse_targets(target_file):
 
 
 def delete_file(file_name):
-    """
-    :param file_name:
-    :return:
+    """Delete a file.
+
+    Args:
+        file_name (str): The file name.
     """
     try:
         os.remove(file_name)
@@ -177,10 +191,11 @@ def delete_file(file_name):
 
 
 def truncate_file(file_name, bytes_from_end):
-    """
-    :param str file_name: name of the file
-    :param int bytes_from_end: number of bytes from the end of the file
-    :return: None
+    """Truncate a file.
+
+    Args:
+        file_name (str): The name of the file.
+        bytes_from_end (int): Number of bytes from end of file.
     """
     f = open(file_name, 'r+')
     f.seek(-1 * bytes_from_end, os.SEEK_END)
@@ -189,11 +204,13 @@ def truncate_file(file_name, bytes_from_end):
 
 
 def get_bam_files(files):
-    """
-    Get all BAM files in tuple of files
+    """Get all BAM files in tuple of files
 
-    :param files: a tuple of files or directories
-    :return: a list of files in directories
+    Args:
+        files (tuple): A tuple of files or directories.
+
+    Returns:
+        list: A list of files in directories.
     """
     list_files = []
 
@@ -207,13 +224,14 @@ def get_bam_files(files):
 
 
 def get_files_in_dir(directory, file_extensions=None):
-    """
-    Get a list of all files in ``directory``.
+    """Get a list of all files in ``directory``.
 
-    :param str directory: a directory
-    :param list file_extensions: a list of file extensions to match, None means all
+    Args:
+        directory (str): The directory to search.
+        file_extensions: A list of file extensions to match, None means all.
 
-    :return: a list of all files
+    Returns:
+        list: A list of all matching files.
     """
     matches = []
 
