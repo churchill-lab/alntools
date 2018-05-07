@@ -790,7 +790,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                       haplotype_names=final.haplotypes,
                       locus_names=final.main_targets.keys(),
                       read_names=ec_ids,
-                      cell_names=final.CRS.keys())
+                      sample_names=final.CRS.keys())
 
             print('ec_arr_max=', ec_arr_max)
             print('target_arr_max=', target_arr_max)
