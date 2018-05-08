@@ -12,12 +12,12 @@ import numpy as np
 
 from scipy.sparse import coo_matrix, diags
 
-from alntools.matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-from alntools import bam_utils
-from alntools import db_utils
-from alntools import bam_utils_multisample
-from alntools import barcode_utils
-from alntools import utils
+from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
+from . import bam_utils
+from . import db_utils
+from . import bam_utils_multisample
+from . import barcode_utils
+from . import utils
 
 LOG = utils.get_logger()
 

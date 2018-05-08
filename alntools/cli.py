@@ -3,10 +3,10 @@ from __future__ import print_function
 
 import click
 
-from alntools import methods
-from alntools import utils
-from alntools import viewer
-from alntools import __logo_text__, __version__
+from . import methods
+from . import utils
+from . import viewer
+from . import __logo_text__, __version__
 
 
 CONTEXT_SETTINGS = dict(help_option_names=['-h', '--help'])

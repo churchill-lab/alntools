@@ -15,8 +15,8 @@ from scipy.sparse import coo_matrix
 import numpy as np
 import pysam
 
-from alntools import utils
-from alntools.matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
+from . import utils
+from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 
 try:
     xrange

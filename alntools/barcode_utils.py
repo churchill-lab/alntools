@@ -12,7 +12,7 @@ from Bio import bgzf
 
 import pysam
 
-from alntools import utils
+from . import utils
 
 try:
     xrange

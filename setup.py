@@ -18,13 +18,15 @@ on_rtd = os.environ.get('READTHEDOCS', None)
 
 if not on_rtd:
     requirements.append('Click>=6.0')
-    requirements.append('numpy==1.8.2')
     requirements.append('numexpr>=2.3.1')
+    requirements.append('numpy==1.8.2')
     requirements.append('scipy==0.13.3')
     requirements.append('pysam>=0.6')
     requirements.append('cython>=0.13')
     requirements.append('tables>=3.1.0')
     requirements.append('biopython>=1.63')
+    requirements.append('future>=0.16')
+    requirements.append('flask>=1.0.2')
 
 setup(
     name='alntools',
@@ -47,7 +49,7 @@ setup(
     zip_safe=False,
     keywords='alntools',
     classifiers=[
-        'Development Status :: 2 - Pre-Alpha',
+        'Development cous :: 2 - Pre-Alpha',
         'Intended Audience :: Developers',
         'License :: OSI Approved :: Apache Software License',
         'Natural Language :: English',
