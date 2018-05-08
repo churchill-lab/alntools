@@ -59,7 +59,7 @@ class ConvertParams(object):
 
 
 class ConvertResults(object):
-    slots = ['main_targets', 'valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges', 'CRS']
+    slots = ['main_targets', 'valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges', 'CRS', 'CRS_idx']
 
     def __init__(self):
         self.main_targets = None
@@ -73,6 +73,7 @@ class ConvertResults(object):
         self.init = False
         self.tid_ranges = None
         self.CRS = None
+        self.CRS_idx = None
 
 
 class RangeParams(object):
@@ -260,150 +261,136 @@ def process_convert_bam(cp):
     temp_name = os.path.join(cp.temp_dir, '_bam2ec.')
     generic_haplotype = '0'
 
+    reference_id = None
+    reference_ids = []
+
     try:
-        reference_id = None
-        reference_ids = []
+        alignment_file = pysam.AlignmentFile(cp.input_file)
 
-        try:
-            alignment_file = pysam.AlignmentFile(cp.input_file)
+        # query template name
+        query_name = None
 
-            # query template name
-            query_name = None
+        while True:
+            alignment = alignment_file.next()
 
-            while True:
-                alignment = alignment_file.next()
+            all_alignments += 1
 
-                all_alignments += 1
+            # if alignment.flag == 4 or alignment.is_unmapped:
+            if alignment.is_unmapped:
+                continue
 
-                # if alignment.flag == 4 or alignment.is_unmapped:
-                if alignment.is_unmapped:
+            # added for paired end files
+            if alignment.is_paired:
+                if alignment.is_read2 or not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
                     continue
 
-                # added for paired end files
-                if alignment.is_paired:
-                    if alignment.is_read2 or not alignment.is_proper_pair or alignment.reference_id != alignment.next_reference_id or alignment.next_reference_start < 0:
-                        continue
+            '''
+            print('alignment.query_name={}'.format(alignment.query_name))
+            print('alignment.reference_id={}'.format(alignment.reference_id))
+            print('alignment.reference_name={}'.format(alignment.reference_name))
+            print('alignment.is_paired={}'.format(alignment.is_paired))
+            print('alignment.is_proper_pair={}'.format(alignment.is_proper_pair))
+            print('alignment.next_reference_id={}'.format(alignment.next_reference_id))
+            print('alignment.next_reference_start={}'.format(alignment.next_reference_start))
+            print('alignment.is_unmapped={}'.format(alignment.is_unmapped))
+            '''
 
-                '''
-                print('alignment.query_name={}'.format(alignment.query_name))
-                print('alignment.reference_id={}'.format(alignment.reference_id))
-                print('alignment.reference_name={}'.format(alignment.reference_name))
-                print('alignment.is_paired={}'.format(alignment.is_paired))
-                print('alignment.is_proper_pair={}'.format(alignment.is_proper_pair))
-                print('alignment.next_reference_id={}'.format(alignment.next_reference_id))
-                print('alignment.next_reference_start={}'.format(alignment.next_reference_start))
-                print('alignment.is_unmapped={}'.format(alignment.is_unmapped))
-                '''
+            valid_alignments += 1
 
-                valid_alignments += 1
+            # reference_sequence_name = Column 3 from file, the Reference NAME (EnsemblID_Haplotype)
+            # reference_id = the reference_id, which is 0 or a positive integer mapping to entries
+            #       within the sequence dictionary in the header section of a BAM file
+            # main_target = the Ensembl id of the transcript
 
-                # reference_sequence_name = Column 3 from file, the Reference NAME (EnsemblID_Haplotype)
-                # reference_id = the reference_id, which is 0 or a positive integer mapping to entries
-                #       within the sequence dictionary in the header section of a BAM file
-                # main_target = the Ensembl id of the transcript
+            reference_sequence_name = alignment.reference_name
+            reference_id = str(alignment.reference_id)
+            idx_underscore = reference_sequence_name.rfind('_')
 
-                reference_sequence_name = alignment.reference_name
-                reference_id = str(alignment.reference_id)
-                idx_underscore = reference_sequence_name.rfind('_')
+            if idx_underscore > 0:
+                main_target = reference_sequence_name[:idx_underscore]
 
-                if idx_underscore > 0:
-                    main_target = reference_sequence_name[:idx_underscore]
+                if cp.track_ranges:
+                    min_max = ranges.get(reference_id, (100000000000, -1))
+                    n = min(min_max[0], alignment.reference_start)
+                    x = max(min_max[1], alignment.reference_start)
+                    ranges[reference_id] = (n,x)
 
-                    if cp.track_ranges:
-                        min_max = ranges.get(reference_id, (100000000000, -1))
-                        n = min(min_max[0], alignment.reference_start)
-                        x = max(min_max[1], alignment.reference_start)
-                        ranges[reference_id] = (n,x)
+                if cp.target_file:
+                    if main_target not in main_targets:
+                        LOG.error("Unexpected target found in BAM file: {}".format(main_target))
+                        sys.exit(-1)
 
-                    if cp.target_file:
-                        if main_target not in main_targets:
-                            LOG.error("Unexpected target found in BAM file: {}".format(main_target))
-                            sys.exit(-1)
-
-                    reference_id_to_main_target[reference_id] = main_target
-
-                    try:
-                        haplotype = reference_sequence_name[idx_underscore+1:]
-                        haplotypes.add(haplotype)
-                    except:
-                        LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
-                        return
-                else:
-                    main_target = reference_sequence_name
-                    if cp.track_ranges:
-                        min_max = ranges.get(reference_id, (100000000000, -1))
-                        n = min(min_max[0], alignment.reference_start)
-                        x = max(min_max[1], alignment.reference_start)
-                        ranges[reference_id] = (n, x)
-
-                    if cp.target_file:
-                        if main_target not in main_targets:
-                            LOG.error("Unexpected target found in BAM file: {}".format(main_target))
-                            sys.exit(-1)
-
-                    reference_id_to_main_target[reference_id] = main_target
-
-                    haplotype = generic_haplotype
-                    haplotypes.add(haplotype)
-
-                # query_name = Column 1 from file, the Query template NAME
-
-                if query_name is None:
-                    query_name = alignment.query_name
-
-                # query_name = Column 1 from file, the Query template NAME
-                bam_tags = query_name.split('|||')
-                orig_query_name = bam_tags[0]
-                bam_tag_CR = bam_tags[2]
-                bam_tag_CY = bam_tags[4]
-                bam_tag_UR = bam_tags[6]
-                bam_tag_UY = bam_tags[8]
-                bam_tag_BC = bam_tags[10]
-                bam_tag_QT = bam_tags[12]
-
-                # set tags and dump new alignment
+                reference_id_to_main_target[reference_id] = main_target
 
                 try:
-                    unique_reads[query_name] += 1
-                except KeyError:
-                    unique_reads[query_name] = 1
+                    haplotype = reference_sequence_name[idx_underscore+1:]
+                    haplotypes.add(haplotype)
+                except:
+                    LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
+                    return
+            else:
+                main_target = reference_sequence_name
+                if cp.track_ranges:
+                    min_max = ranges.get(reference_id, (100000000000, -1))
+                    n = min(min_max[0], alignment.reference_start)
+                    x = max(min_max[1], alignment.reference_start)
+                    ranges[reference_id] = (n, x)
 
-                alignment_query_name = alignment.query_name
+                if cp.target_file:
+                    if main_target not in main_targets:
+                        LOG.error("Unexpected target found in BAM file: {}".format(main_target))
+                        sys.exit(-1)
 
-                if query_name != alignment_query_name:
-                    ec_key = ','.join(sorted(reference_ids))
-                    ec[ec_key][bam_tag_CR] += 1
+                reference_id_to_main_target[reference_id] = main_target
 
-                    query_name = alignment.query_name
+                haplotype = generic_haplotype
+                haplotypes.add(haplotype)
 
-                    reference_ids = [reference_id]
-                    read_id_switch_counter += 1
+            # query_name = Column 1 from file, the Query template NAME
+
+            if query_name is None:
+                query_name = alignment.query_name
+
+            # query_name = Column 1 from file, the Query template NAME
+            bam_tags = query_name.split('|||')
+            orig_query_name = bam_tags[0]
+            bam_tag_CR = bam_tags[2]
+            bam_tag_CY = bam_tags[4]
+            bam_tag_UR = bam_tags[6]
+            bam_tag_UY = bam_tags[8]
+            bam_tag_BC = bam_tags[10]
+            bam_tag_QT = bam_tags[12]
+
+            # set tags and dump new alignment
+
+            try:
+                unique_reads[query_name] += 1
+            except KeyError:
+                unique_reads[query_name] = 1
+
+            alignment_query_name = alignment.query_name
+
+            if query_name != alignment_query_name:
+                ec_key = ','.join(sorted(reference_ids))
+                ec[ec_key][bam_tag_CR] += 1
+
+                query_name = alignment.query_name
+
+                reference_ids = [reference_id]
+                read_id_switch_counter += 1
+            else:
+                if reference_id not in reference_ids:
+                    reference_ids.append(reference_id)
                 else:
-                    if reference_id not in reference_ids:
-                        reference_ids.append(reference_id)
-                    else:
-                        same_read_target_counter += 1
+                    same_read_target_counter += 1
 
-                if all_alignments % 100000 == 0:
-                    LOG.debug("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(cp.process_id, cp.input_file, valid_alignments, all_alignments, len(ec)))
+            if all_alignments % 100000 == 0:
+                LOG.debug("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(cp.process_id, cp.input_file, valid_alignments, all_alignments, len(ec)))
 
-        except StopIteration:
-            LOG.info(
-                "DONE Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(
-                    cp.process_id, cp.input_file, valid_alignments, all_alignments, len(ec)))
-
-        #LOG.info("{0:,} alignments processed, with {1:,} equivalence classes".format(line_no, len(ec)))
-        if reference_id not in reference_ids:
-            reference_ids.append(reference_id)
-
-        ec_key = ','.join(sorted(reference_ids))
-        ec[ec_key][bam_tag_CR] += 1
-
-    #except Exception as e:
-    #    LOG.error("Error: {}".format(str(e)))
-
-    except StopIteration as e:
-        LOG.error("Error: {}".format(str(e)))
+    except StopIteration:
+        LOG.info(
+            "DONE Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(
+                cp.process_id, cp.input_file, valid_alignments, all_alignments, len(ec)))
 
     haplotypes = sorted(list(haplotypes))
 
@@ -423,7 +410,7 @@ def process_convert_bam(cp):
     ret.target_idx_to_main_target = reference_id_to_main_target
     ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
-    ret.CRS = {}
+    ret.CRS = OrderedDict()
 
     return ret
 
@@ -517,8 +504,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     final.tid_ranges = {}
 
     ec_totals = OrderedDict()
-
-    cr_totals = {}
+    cr_totals = OrderedDict()
 
     LOG.info("Starting {} processes ...".format(num_processes))
 
@@ -546,15 +532,21 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             final = result
             final.init = True
             final.ec_idx = OrderedDict()
+            final.CRS_idx = OrderedDict()
+
             for eckey, crdict in result.ec.iteritems():
                 final.ec_idx[eckey] = len(final.ec_idx)
                 for crkey, count in crdict.iteritems():
+                    final.CRS[crkey] = 1
+
+                    if crkey not in final.CRS_idx:
+                        final.CRS_idx[crkey] = len(final.CRS_idx)
+
                     if crkey in cr_totals:
                         cr_totals[crkey] += count
                     else:
                         cr_totals[crkey] = count
 
-                    final.CRS[crkey] = 1
                     if eckey in ec_totals:
                         ec_totals[eckey] += count
                     else:
@@ -564,9 +556,13 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         else:
             # combine ec and URS
             LOG.debug("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
+
             for eckey, crdict in result.ec.iteritems():
                 for crkey, count in crdict.iteritems():
                     final.CRS[crkey] = 1
+
+                    if crkey not in final.CRS_idx:
+                        final.CRS_idx[crkey] = len(final.CRS_idx)
 
                     if crkey in cr_totals:
                         cr_totals[crkey] += count
@@ -634,7 +630,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("All results combined in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
              utils.format_time(start_time, time.time())))
 
-
     #LOG.info("# Total Alignments: {:,}".format(final.all_alignments))
     LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
     LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
@@ -644,15 +639,22 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.debug("# Equivalence Class Max Index: {:,}".format(max(final.ec_idx.values())))
     LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
 
-    LOG.info("FILTERING CRS: {:,}".format(len(final.CRS)))
-
     # filter everything
+    LOG.debug("Minimum Count: {:,}".format(minimum_count))
+
     if minimum_count > 0:
+        LOG.info("FILTERING CRS: {:,}".format(len(final.CRS)))
         # find the new CRS
         final.CRS = OrderedDict()
+        final.CRS_idx = OrderedDict()
         for CR, CR_total in cr_totals.iteritems():
+            #print CR, CR_total
             if CR_total >= minimum_count:
                 final.CRS[CR] = CR_total
+
+                if crkey not in final.CRS_idx:
+                    final.CRS_idx[crkey] = len(final.CRS_idx)
+
 
         # remove invalid CRS from ECs
         new_ecs = OrderedDict()
@@ -661,6 +663,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         # loop through ecs
         for eckey, crs in final.ec.iteritems():
             # potential new ec
+
             ec = {}
             total = 0
             # loop through valid CRS and and if valid
@@ -723,7 +726,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     except OSError:
         pass
 
-
     LOG.info("CRS: {:,}".format(len(final.CRS)))
     ec_arr_max = -1
     target_arr_max = -1
@@ -742,8 +744,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
             target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
 
-            m1 = 0
-            m2 = 0
             # k = comma seperated string of tids
             # v = the count
             for k, v in final.ec.iteritems():
@@ -808,16 +808,24 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             # OLD: apm.count = final.ec.values()
 
             LOG.debug('Constructing CRS...')
+            LOG.debug('CRS dimensions: {:,} x {:,}'.format(len(final.ec), len(final.CRS)))
+            LOG.debug('Constructing CRS...')
+
+            #print final.CRS_idx
+            #print len(final.CRS)
+            #print len(final.CRS_idx)
 
             npa = np.zeros((len(final.ec), len(final.CRS)))
             i = 0
-            for k, v in final.ec.iteritems():
-                #if i % 10 == 0:
-                #    LOG.debug(i)
-                for idx, CRS in final.CRS.iteritems():
-                    if CRS in v:
-                        npa[i:idx] = v[CRS]
+            for eckey, crs in final.ec.iteritems():
+                # k = commas seperated list (eckey)
+                # v = dict of CRS and counts
+                for crskey, crscount in crs.iteritems():
+                    #print i, crskey, final.CRS_idx[crskey]
+                    npa[i, final.CRS_idx[crskey]] = crs[crskey]
                 i += 1
+
+            print npa.sum()
 
             apm.count = npa #.reshape((len(final.ec), len(final.CRS)))
 
