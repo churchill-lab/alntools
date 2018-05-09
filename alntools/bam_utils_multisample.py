@@ -792,16 +792,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                       read_names=ec_ids,
                       sample_names=final.CRS.keys())
 
-            print('ec_arr_max=', ec_arr_max)
-            print('target_arr_max=', target_arr_max)
-
             for h in xrange(0, len(final.haplotypes)):
                 d = np.ones(len(ec_arr[h]))
-                print('len(d)=', len(d))
-                print('len(final.ec)=', len(final.ec))
-                print('len(final.main_targets)=', len(final.main_targets))
-                print('len(ec_arr[h])=', len(ec_arr[h]))
-                print('len(target_arr[h])=', len(target_arr[h]))
                 apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
 
             # now ER by UR
@@ -825,7 +817,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     npa[i, final.CRS_idx[crskey]] = crs[crskey]
                 i += 1
 
-            print npa.sum()
+            LOG.info("NPA SUM: {:,}".format(npa.sum()))
 
             apm.count = npa #.reshape((len(final.ec), len(final.CRS)))
 
@@ -1354,7 +1346,7 @@ def generate_bam_ranges(input_files, range_filename, target_filename=None, temp_
         params = RangeParams()
         params.process_id = i
         params.input_file = f[1]
-        print (params.input_file)
+        #print (params.input_file)
 
         params.target_file = target_filename
         params.temp_dir = temp_dir
