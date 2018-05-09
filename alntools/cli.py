@@ -63,16 +63,17 @@ def bam2ec(bam_file, ec_file, chunks, targets, directory, range, mincount, multi
 @click.option('-c', '--chunks', default=0, help="number of chunks to process")
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
 @click.option('-m', '--mincount', default=2000, help="minimum count")
+@click.option('-p', '--number_processes', default=-1, help="number of processes")
 @click.option('--multisample', is_flag=True)
 @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def bam2emase(bam_file, emase_file, chunks, targets, directory, mincount, multisample, verbose):
+def bam2emase(bam_file, emase_file, chunks, targets, directory, mincount, multisample, number_processes, verbose):
     """
     Convert a BAM file (bam_file) to an EMASE file (emase_file).
     """
     utils.configure_logging(verbose)
     if multisample:
-        methods.bam2emase_multisample(bam_file, emase_file, chunks, targets, directory, mincount)
+        methods.bam2emase_multisample(bam_file, emase_file, chunks, targets, directory, mincount, number_processes)
     else:
         methods.bam2emase(bam_file, emase_file, chunks, targets, directory)
 
