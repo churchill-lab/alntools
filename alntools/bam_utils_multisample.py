@@ -449,7 +449,7 @@ def wrapper_range(args):
 # quality
 
 
-def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, range_filename=None, minimum_count=-1):
+def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, range_filename=None, minimum_count=-1, number_processes=-1):
     """
     """
     start_time = time.time()
@@ -463,9 +463,11 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         LOG.error('No bam files found in directory: {}'.format(bam_filename))
         return None
 
-    num_processes = multiprocessing.cpu_count()
-    num_processes = min(num_processes, len(bam_files))
-
+    if number_processes <= 0:
+        num_processes = multiprocessing.cpu_count()
+        num_processes = min(num_processes, len(bam_files))
+    else:
+        num_processes = number_processes
 
     if not temp_dir:
         temp_dir = os.path.dirname(output_filename)
