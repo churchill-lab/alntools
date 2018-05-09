@@ -647,13 +647,13 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         # find the new CRS
         final.CRS = OrderedDict()
         final.CRS_idx = OrderedDict()
+
         for CR, CR_total in cr_totals.iteritems():
-            #print CR, CR_total
             if CR_total >= minimum_count:
                 final.CRS[CR] = CR_total
 
-                if crkey not in final.CRS_idx:
-                    final.CRS_idx[crkey] = len(final.CRS_idx)
+                if CR not in final.CRS_idx:
+                    final.CRS_idx[CR] = len(final.CRS_idx)
 
 
         # remove invalid CRS from ECs
