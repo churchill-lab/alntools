@@ -3,6 +3,7 @@ from collections import OrderedDict, namedtuple, defaultdict
 from struct import pack
 
 import glob
+import gzip
 import multiprocessing
 import os
 import struct
@@ -842,131 +843,129 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            f = open(output_filename, "wb")
+            with gzip.open(output_filename, 'wb') as f:
+                # version
+                f.write(pack('<i', 2))
+                LOG.info("VERSION: 2")
 
-            # version
-            f.write(pack('<i', 2))
-            LOG.info("VERSION: 2")
+                # targets
+                LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
+                f.write(pack('<i', len(final.main_targets)))
+                for main_target, idx in final.main_targets.iteritems():
+                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+                    f.write(pack('<i', len(main_target)))
+                    f.write(pack('<{}s'.format(len(main_target)), main_target))
 
-            # targets
-            LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
-            f.write(pack('<i', len(final.main_targets)))
-            for main_target, idx in final.main_targets.iteritems():
-                #LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-                f.write(pack('<i', len(main_target)))
-                f.write(pack('<{}s'.format(len(main_target)), main_target))
-
-            # haplotypes
-            LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
-            f.write(pack('<i', len(final.haplotypes)))
-            for idx, hap in enumerate(final.haplotypes):
-                #LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
-                f.write(pack('<i', len(hap)))
-                f.write(pack('<{}s'.format(len(hap)), hap))
+                # haplotypes
+                LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
+                f.write(pack('<i', len(final.haplotypes)))
+                for idx, hap in enumerate(final.haplotypes):
+                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+                    f.write(pack('<i', len(hap)))
+                    f.write(pack('<{}s'.format(len(hap)), hap))
 
 
-            #
-            LOG.info("FILTERED CRS: {:,}".format(len(final.CRS)))
-            f.write(pack('<i', len(final.CRS)))
-            for CR, idx in final.CRS.iteritems():
-                #LOG.debug("{:,}\t{}\t# {:,}".format(len(CR), CR, idx))
-                f.write(pack('<i', len(CR)))
-                f.write(pack('<{}s'.format(len(CR)), CR))
+                #
+                LOG.info("FILTERED CRS: {:,}".format(len(final.CRS)))
+                f.write(pack('<i', len(final.CRS)))
+                for CR, idx in final.CRS.iteritems():
+                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(CR), CR, idx))
+                    f.write(pack('<i', len(CR)))
+                    f.write(pack('<{}s'.format(len(CR)), CR))
 
-            # equivalence classes
-            LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(final.ec)))
-            LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(ec_totals)))
-            f.write(pack('<i', len(ec_totals)))
-            for idx, k in enumerate(ec_totals.keys()):
-                # ec[k] is the count
-                #LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
-                f.write(pack('<i', ec_totals[k]))
+                # equivalence classes
+                LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(final.ec)))
+                LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(ec_totals)))
+                f.write(pack('<i', len(ec_totals)))
+                for idx, k in enumerate(ec_totals.keys()):
+                    # ec[k] is the count
+                    #LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
+                    f.write(pack('<i', ec_totals[k]))
 
-            LOG.debug("Determining mappings...")
+                LOG.debug("Determining mappings...")
 
-            # equivalence class mappings
-            counter = 0
-            for k, v in final.ec.iteritems():
-                arr_target_idx = k.split(",")
+                # equivalence class mappings
+                counter = 0
+                for k, v in final.ec.iteritems():
+                    arr_target_idx = k.split(",")
 
-                # get the main targets by name
-                temp_main_targets = set()
-                for idx in arr_target_idx:
-                    temp_main_targets.add(final.target_idx_to_main_target[idx])
+                    # get the main targets by name
+                    temp_main_targets = set()
+                    for idx in arr_target_idx:
+                        temp_main_targets.add(final.target_idx_to_main_target[idx])
 
-                counter += len(temp_main_targets)
+                    counter += len(temp_main_targets)
 
-            LOG.info("NUMBER OF EQUIVALANCE CLASS MAPPINGS: {:,}".format(counter))
-            f.write(pack('<i', counter))
+                LOG.info("NUMBER OF EQUIVALANCE CLASS MAPPINGS: {:,}".format(counter))
+                f.write(pack('<i', counter))
 
-            for k, v in final.ec.iteritems():
-                arr_target_idx = k.split(",")
+                for k, v in final.ec.iteritems():
+                    arr_target_idx = k.split(",")
 
-                # get the main targets by name
-                temp_main_targets = set()
-                for idx in arr_target_idx:
-                    temp_main_targets.add(final.target_idx_to_main_target[idx])
+                    # get the main targets by name
+                    temp_main_targets = set()
+                    for idx in arr_target_idx:
+                        temp_main_targets.add(final.target_idx_to_main_target[idx])
 
-                # loop through the haplotypes and targets to get the bits
-                for main_target in temp_main_targets:
-                    # main_target is not an index, but a value like 'ENMUST..001'
+                    # loop through the haplotypes and targets to get the bits
+                    for main_target in temp_main_targets:
+                        # main_target is not an index, but a value like 'ENMUST..001'
 
-                    bits = []
+                        bits = []
 
-                    # TODO: fix this, maybe set a flag
-                    # checking to see if there is more than 1 haplotype and
-                    # not the generic/default one of '0'
-                    if len(final.haplotypes) == 1 and final.haplotypes[0] == '0':
-                        read_transcript_idx = str(alignment_file.gettid(main_target))
-
-                        if read_transcript_idx in arr_target_idx:
-                            bits.append(1)
-                        else:
-                            bits.append(0)
-
-                        #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
-                        f.write(pack('<i', final.ec_idx[k]))
-                        f.write(pack('<i', final.main_targets[main_target]))
-                        f.write(pack('<i', utils.list_to_int(bits)))
-
-                    else:
-                        for hap in final.haplotypes:
-                            read_transcript = '{}_{}'.format(main_target, hap) # now 'ENMUST..001_A'
-                            read_transcript_idx = str(alignment_file.gettid(read_transcript))
+                        # TODO: fix this, maybe set a flag
+                        # checking to see if there is more than 1 haplotype and
+                        # not the generic/default one of '0'
+                        if len(final.haplotypes) == 1 and final.haplotypes[0] == '0':
+                            read_transcript_idx = str(alignment_file.gettid(main_target))
 
                             if read_transcript_idx in arr_target_idx:
                                 bits.append(1)
                             else:
                                 bits.append(0)
 
-                        #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
-                        f.write(pack('<i', final.ec_idx[k]))
-                        f.write(pack('<i', final.main_targets[main_target]))
-                        f.write(pack('<i', utils.list_to_int(bits)))
+                            #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
+                            f.write(pack('<i', final.ec_idx[k]))
+                            f.write(pack('<i', final.main_targets[main_target]))
+                            f.write(pack('<i', utils.list_to_int(bits)))
+
+                        else:
+                            for hap in final.haplotypes:
+                                read_transcript = '{}_{}'.format(main_target, hap) # now 'ENMUST..001_A'
+                                read_transcript_idx = str(alignment_file.gettid(read_transcript))
+
+                                if read_transcript_idx in arr_target_idx:
+                                    bits.append(1)
+                                else:
+                                    bits.append(0)
+
+                            #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
+                            f.write(pack('<i', final.ec_idx[k]))
+                            f.write(pack('<i', final.main_targets[main_target]))
+                            f.write(pack('<i', utils.list_to_int(bits)))
 
 
-            total = len(final.ec) * len(final.CRS)
-            LOG.info("NUMBER OF RECORDS: {:,}".format(total))
-            f.write(pack('<q', total))
+                total = len(final.ec) * len(final.CRS)
+                LOG.info("NUMBER OF RECORDS: {:,}".format(total))
+                f.write(pack('<q', total))
 
-            i = 0
-            #for k, v in final.ec.iteritems():
-            #    dump = [0] * len(final.CRS.keys())
-            #    for idx, CRS in final.CRS.iteritems():
-            #        if CRS in v:
-            #            dump[idx] = v[CRS]
+                i = 0
+                #for k, v in final.ec.iteritems():
+                #    dump = [0] * len(final.CRS.keys())
+                #    for idx, CRS in final.CRS.iteritems():
+                #        if CRS in v:
+                #            dump[idx] = v[CRS]
 
-            for idx, CRS in final.CRS.iteritems():
-                dump = [0] * len(final.ec.keys())
-                for k, v in final.ec.iteritems():
-                    if CRS in v:
-                        dump[idx] = v[CRS]
+                for idx, CRS in final.CRS.iteritems():
+                    dump = [0] * len(final.ec.keys())
+                    for k, v in final.ec.iteritems():
+                        if CRS in v:
+                            dump[idx] = v[CRS]
 
-                f.write(pack('<{}i'.format(len(dump)), *dump))
-                #print(i)
-                i += 1
+                    f.write(pack('<{}i'.format(len(dump)), *dump))
+                    #print(i)
+                    i += 1
 
-            f.close()
 
             LOG.info("{} created in {}, total time: {}".format(output_filename,
                                                                utils.format_time(temp_time, time.time()),
