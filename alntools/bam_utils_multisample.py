@@ -60,7 +60,7 @@ class ConvertParams(object):
 
 
 class ConvertResults(object):
-    slots = ['main_targets', 'valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges', 'CRS', 'CRS_idx']
+    slots = ['main_targets', 'valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'init', 'tid_ranges', 'CRS', 'CRS_idx']
 
     def __init__(self):
         self.main_targets = None
@@ -70,7 +70,6 @@ class ConvertResults(object):
         self.ec_idx = None
         self.haplotypes = None
         self.target_idx_to_main_target = None
-        self.unique_reads = None
         self.init = False
         self.tid_ranges = None
         self.CRS = None
@@ -245,7 +244,7 @@ def process_convert_bam(cp):
     reference_id_to_main_target = {}
 
     # unique reads
-    unique_reads = {}
+    # unique_reads = {}
 
     # times encountering new read id
     read_id_switch_counter = 0
@@ -364,10 +363,10 @@ def process_convert_bam(cp):
 
             # set tags and dump new alignment
 
-            try:
-                unique_reads[query_name] += 1
-            except KeyError:
-                unique_reads[query_name] = 1
+            #try:
+            #    unique_reads[query_name] += 1
+            #except KeyError:
+            #    unique_reads[query_name] = 1
 
             alignment_query_name = alignment.query_name
 
@@ -395,7 +394,7 @@ def process_convert_bam(cp):
 
     haplotypes = sorted(list(haplotypes))
 
-    LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
+    #LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
     LOG.debug("Process ID: {}, # Reads/Target Duplications: {:,}".format(cp.process_id, same_read_target_counter))
     LOG.debug("Process ID: {}, # Main Targets: {:,}".format(cp.process_id, len(main_targets)))
     LOG.debug("Process ID: {}, # Haplotypes: {:,}".format(cp.process_id, len(haplotypes)))
@@ -406,12 +405,12 @@ def process_convert_bam(cp):
     ret.valid_alignments = valid_alignments
     ret.all_alignments = all_alignments
     ret.ec = ddict2dict(ec)
-    ret.ec_idx = OrderedDict()
+    ret.ec_idx = None #OrderedDict()
     ret.haplotypes = haplotypes
     ret.target_idx_to_main_target = reference_id_to_main_target
-    ret.unique_reads = unique_reads
+    #ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
-    ret.CRS = OrderedDict()
+    ret.CRS = None #OrderedDict()
 
     return ret
 
@@ -606,13 +605,13 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             LOG.debug("CHUNK {}: # Total Main Targets: {:,}".format(idx, len(final.main_targets)))
 
             # unique reads
-            LOG.debug("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
-            for k, v in result.unique_reads.iteritems():
-                if k in final.unique_reads:
-                    final.unique_reads[k] += v
-                else:
-                    final.unique_reads[k] = v
-            LOG.debug("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(final.unique_reads)))
+            #LOG.debug("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
+            #for k, v in result.unique_reads.iteritems():
+            #    if k in final.unique_reads:
+            #        final.unique_reads[k] += v
+            #    else:
+            #        final.unique_reads[k] = v
+            #LOG.debug("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(final.unique_reads)))
 
             final.valid_alignments += result.valid_alignments
             final.all_alignments += result.all_alignments
@@ -640,7 +639,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
     LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(final.ec_idx)))
     LOG.debug("# Equivalence Class Max Index: {:,}".format(max(final.ec_idx.values())))
-    LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
+    #LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
 
     # filter everything
     LOG.debug("Minimum Count: {:,}".format(minimum_count))
@@ -693,7 +692,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
     LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(final.ec_idx)))
     LOG.debug("# Equivalence Class Max Index: {:,}".format(max(final.ec_idx.values())))
-    LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
+    #LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
 
     if range_filename:
         # tid_stats
