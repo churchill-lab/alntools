@@ -865,7 +865,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 f.write(pack('<{}s'.format(len(hap)), hap))
 
 
-            # URS
+            #
             LOG.info("FILTERED CRS: {:,}".format(len(final.CRS)))
             f.write(pack('<i', len(final.CRS)))
             for CR, idx in final.CRS.iteritems():
@@ -950,9 +950,15 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             f.write(pack('<q', total))
 
             i = 0
-            for k, v in final.ec.iteritems():
-                dump = [0] * len(final.CRS.keys())
-                for idx, CRS in final.CRS.iteritems():
+            #for k, v in final.ec.iteritems():
+            #    dump = [0] * len(final.CRS.keys())
+            #    for idx, CRS in final.CRS.iteritems():
+            #        if CRS in v:
+            #            dump[idx] = v[CRS]
+
+            for idx, CRS in final.CRS.iteritems():
+                dump = [0] * len(final.ec.keys())
+                for k, v in final.ec.iteritems():
                     if CRS in v:
                         dump[idx] = v[CRS]
 
