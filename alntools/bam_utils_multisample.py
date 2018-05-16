@@ -533,6 +533,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         if not final.init:
             final = result
             final.init = True
+            final.CRS = OrderedDict()
             final.ec_idx = OrderedDict()
             final.CRS_idx = OrderedDict()
 
