@@ -957,7 +957,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     i += 1
 
                 memfile = io.BytesIO()
-                np.savez_compressed(memfile, npa)
+                np.save(memfile, npa)
                 f.write(struct.pack('L', memfile.tell()))
                 f.write(memfile.getvalue())
 
