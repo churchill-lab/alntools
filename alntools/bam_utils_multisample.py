@@ -4,6 +4,7 @@ from struct import pack
 
 import glob
 import gzip
+import io
 import multiprocessing
 import os
 import struct
@@ -944,27 +945,30 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                             f.write(pack('<i', final.main_targets[main_target]))
                             f.write(pack('<i', utils.list_to_int(bits)))
 
-
-                total = len(final.ec) * len(final.CRS)
-                LOG.info("NUMBER OF RECORDS: {:,}".format(total))
-                f.write(pack('<q', total))
-
+                LOG.info("DUMPING NP: {:,}".format(len(final.ec) * len(final.CRS)))
+                npa = np.zeros((len(final.ec), len(final.CRS)))
                 i = 0
-                #for k, v in final.ec.iteritems():
-                #    dump = [0] * len(final.CRS.keys())
-                #    for idx, CRS in final.CRS.iteritems():
+                for eckey, crs in final.ec.iteritems():
+                    # k = commas seperated list (eckey)
+                    # v = dict of CRS and counts
+                    for crskey, crscount in crs.iteritems():
+                        # print i, crskey, final.CRS_idx[crskey]
+                        npa[i, final.CRS_idx[crskey]] = crs[crskey]
+                    i += 1
+
+                memfile = io.BytesIO()
+                np.savez_compressed(memfile, npa)
+                f.write(struct.pack('L', memfile.tell()))
+                f.write(memfile.getvalue())
+
+
+                #for idx, CRS in final.CRS.iteritems():
+                #    dump = [0] * len(final.ec.keys())
+                #    for k, v in final.ec.iteritems():
                 #        if CRS in v:
                 #            dump[idx] = v[CRS]
-
-                for idx, CRS in final.CRS.iteritems():
-                    dump = [0] * len(final.ec.keys())
-                    for k, v in final.ec.iteritems():
-                        if CRS in v:
-                            dump[idx] = v[CRS]
-
-                    f.write(pack('<{}i'.format(len(dump)), *dump))
-                    #print(i)
-                    i += 1
+                #
+                #    f.write(pack('<{}i'.format(len(dump)), *dump))
 
 
             LOG.info("{} created in {}, total time: {}".format(output_filename,
