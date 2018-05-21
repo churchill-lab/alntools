@@ -795,7 +795,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                   sample_names=final.CRS.keys())
 
         for h in xrange(0, len(final.haplotypes)):
-            d = np.ones(len(ec_arr[h]))
+            d = np.ones(len(ec_arr[h]), dtype=np.int32)
             apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
 
         # now ER by UR
@@ -838,15 +838,17 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             LOG.debug("Creating summary matrix...")
             temp_time = time.time()
             summat = apm.data[0].copy()
-            #LOG.info("Haplotype sum {}".format(apm.data[0].sum()))
+
+            LOG.info("Haplotype sum {}".format(apm.data[0].sum()))
             for h in xrange(1, len(final.haplotypes)):
-                #LOG.debug("Haplotype {}".format(h))
-                #LOG.info("Haplotype sum {}".format(apm.data[h].sum()))
-                #LOG.info("apm.data[h].nnz {}".format(apm.data[h].sum()))
+                LOG.debug("Haplotype {}".format(h))
+                LOG.info("Haplotype sum {}".format(apm.data[h].sum()))
+                LOG.info("apm.data[h].nnz {}".format(apm.data[h].sum()))
                 summat = summat + ((2 ** h) * apm.data[h])
 
-            #LOG.debug('summat.sum = {}'.format(summat.sum()))
-            #LOG.debug('summat.max = {}'.format(summat.max()))
+            LOG.debug('summat.sum = {}'.format(summat.sum()))
+            LOG.debug('summat.max = {}'.format(summat.max()))
+            LOG.debug('summat = {}'.format(summat))
 
             LOG.info("Matrix created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                    utils.format_time(start_time, time.time())))
@@ -854,7 +856,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            with gzip.open(output_filename, 'wb') as f:
+            #with gzip.open(output_filename, 'wb') as f:
+            with open(output_filename, 'wb') as f:
                 # FORMAT
                 f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")
@@ -968,20 +971,26 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 LOG.info("NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
                 f.write(pack('<i', len(final.ec)))
 
-                # NON ZEROS
-                LOG.info("NUMBER OF NON ZERO: {:,}".format(summat.nnz))
-                f.write(pack('<i', summat.nnz))
-
                 npa_csr = npa.tocsr()
 
+                # NON ZEROS
+                LOG.info("NUMBER OF NON ZERO: {:,}".format(npa_csr.nnz))
+                f.write(pack('<i', npa_csr.nnz))
+
                 # ROW OFFSETS
+                LOG.info("LENGTH INDPTR: {:,}".format(len(npa_csr.indptr)))
                 f.write(pack('<{}i'.format(len(npa_csr.indptr)), *npa_csr.indptr))
+                LOG.error(npa_csr.indptr)
 
                 # COLUMNS
+                LOG.info("LENGTH INDICES: {:,}".format(len(npa_csr.indices)))
                 f.write(pack('<{}i'.format(len(npa_csr.indices)), *npa_csr.indices))
+                LOG.error(npa_csr.indices)
 
                 # DATA
+                LOG.info("LENGTH DATA: {:,}".format(len(npa_csr.data)))
                 f.write(pack('<{}i'.format(len(npa_csr.data)), *npa_csr.data))
+                LOG.error(npa_csr.data)
 
                 #
                 # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
@@ -1016,7 +1025,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 f.write(pack('<i', num_mappings))
 
                 for i, d in enumerate(summat.data):
-                    # LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
+                    LOG.debug("{}\t{}\t{}\t".format(summat.row[i], summat.col[i], d))
                     f.write(pack('<i', summat.row[i]))
                     f.write(pack('<i', summat.col[i]))
                     f.write(pack('<i', d))

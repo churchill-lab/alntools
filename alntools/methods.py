@@ -3,6 +3,7 @@ from collections import OrderedDict
 from struct import pack
 
 import csv
+import gzip
 import os
 import re
 import tempfile
@@ -199,34 +200,41 @@ def parse_ec(file_in, detail=False):
     if not file_in:
         raise ValueError("empty file name, cannot load")
 
-    f = open(file_in, 'rb')
-
     ec = EC(file_in)
+
+    # attempt to see if this is gzipped (version 2)
+    try:
+        f = gzip.open(file_in)
+        ec.version = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+    except Exception as e:
+        print('error={}'.format(str(e)))
+        f = open(file_in, 'rb')
+        ec.version = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
 
     LOG.debug("Parsing: {}".format(file_in))
 
-    ec.version = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
-
     if ec.version == 0:
-        LOG.info("Version: 0, Reads")
+        LOG.error("Version: 0, Reads")
     elif ec.version == 1:
-        LOG.info("Version: 1, Equivalence Class")
+        LOG.error("Version: 1, Equivalence Class")
+    elif ec.version == 2:
+        LOG.error("Version: 2, Multisample")
     else:
-        LOG.info("Unknown version, exiting")
-        LOG.info("Exiting")
+        LOG.error("Unknown version, exiting")
+        LOG.error("Exiting")
         return
 
     # TARGETS
 
     num_targets = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
-    LOG.info("Target Count: {0:,}".format(num_targets))
+    LOG.error("Target Count: {0:,}".format(num_targets))
 
     for i in xrange(0, num_targets):
         str_len = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
         target = np.fromfile(f, dtype=np.dtype('a' + str(str_len)), count=1)[0]
         ec.targets_dict[target] = i
         ec.targets_list.append(target)
-        LOG.debug("{} {}".format(i, target))
+        LOG.info("{} {}".format(i, target))
 
     #LOG.debug('ec.targets_list[0:10]={}'.format(str(ec.targets_list[0:10])))
     #LOG.debug('len(ec.targets_list)={}'.format(len(ec.targets_list)))
@@ -234,7 +242,7 @@ def parse_ec(file_in, detail=False):
     # HAPLOTYPES
 
     num_haplotypes = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
-    LOG.info("Haplotype Count: {0:,}".format(num_haplotypes))
+    LOG.error("Haplotype Count: {0:,}".format(num_haplotypes))
 
     ec.haplotypes_list = []
     ec.haplotypes_dict = OrderedDict()
@@ -244,7 +252,7 @@ def parse_ec(file_in, detail=False):
         haplotype = np.fromfile(f, dtype=np.dtype('a' + str(str_len)), count=1)[0]
         ec.haplotypes_dict[haplotype] = i
         ec.haplotypes_list.append(haplotype)
-        LOG.debug("{} {}".format(i, haplotype))
+        LOG.info("{} {}".format(i, haplotype))
 
     if ec.version == 0:
         # READS
@@ -253,19 +261,19 @@ def parse_ec(file_in, detail=False):
         ec.reads_dict = OrderedDict()
 
         num_reads = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
-        LOG.info("Read Count: {0:,}".format(num_reads))
+        LOG.error("Read Count: {0:,}".format(num_reads))
 
         for i in xrange(0, num_reads):
             str_len = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
             read_id = np.fromfile(f, dtype=np.dtype('a' + str(str_len)), count=1)[0]
             ec.reads_dict[read_id] = i
             ec.reads_list.append(read_id)
-            LOG.debug("{} {}".format(i, read_id))
+            LOG.info("{} {}".format(i, read_id))
 
         # ALIGNMENTS
 
         num_alignments = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
-        LOG.info("Alignment Count: {0:,}".format(num_alignments))
+        LOG.error("Alignment Count: {0:,}".format(num_alignments))
 
         temp_alignments = np.fromfile(f, dtype=np.dtype('i'), count=num_alignments*3)
         ec.alignments = []
@@ -275,10 +283,10 @@ def parse_ec(file_in, detail=False):
             target_index = temp_alignments[i+1]
             bit_flag = temp_alignments[i+2]
             ec.alignments.append((read_index, target_index, bit_flag))
-            LOG.debug("{} {} {}  # {} {} {} ".format(read_index, target_index, bit_flag, ec.reads_list[read_index], ec.targets_list[target_index], bit_flag))
-    else:
+            LOG.info("{} {} {}  # {} {} {} ".format(read_index, target_index, bit_flag, ec.reads_list[read_index], ec.targets_list[target_index], bit_flag))
+    elif ec.version == 1:
         num_ec = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
-        LOG.info("Equivalance Class Count: {0:,}".format(num_ec))
+        LOG.error("Equivalence Class Count: {0:,}".format(num_ec))
 
         ec.ec_list = [x for x in xrange(0, num_ec)]
         ec.ec_counts_list = np.fromfile(f, dtype=np.dtype('i'), count=num_ec)
@@ -286,7 +294,7 @@ def parse_ec(file_in, detail=False):
         # ALIGNMENTS
 
         num_alignments = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
-        LOG.info("Alignment Count: {0:,}".format(num_alignments))
+        LOG.error("Alignment Count: {0:,}".format(num_alignments))
 
         temp_alignments = np.fromfile(f, dtype=np.dtype('i'), count=num_alignments*3)
         ec.alignments = []
@@ -296,7 +304,62 @@ def parse_ec(file_in, detail=False):
             target_index = temp_alignments[i+1]
             bit_flag = temp_alignments[i+2]
             ec.alignments.append((ec_index, target_index, bit_flag))
-            LOG.debug("{} {} {}  # {} {} {} ".format(ec_index, target_index, bit_flag, ec.ec_list[ec_index], ec.targets_list[target_index], bit_flag))
+            LOG.info("{} {} {}  # {} {} {} ".format(ec_index, target_index, bit_flag, ec.ec_list[ec_index], ec.targets_list[target_index], bit_flag))
+
+    elif ec.version == 2:
+        #
+        # CR
+        #
+
+        cr_dict = OrderedDict()
+        cr_list = []
+
+        num_crs = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+        LOG.error("CR Count: {0:,}".format(num_crs))
+
+        for i in xrange(0, num_crs):
+            str_len = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+            cr = np.fromfile(f, dtype=np.dtype('a' + str(str_len)), count=1)[0]
+            cr_dict[cr] = i
+            cr_list.append(cr)
+            LOG.info("{} {}".format(i, cr))
+
+        # "N" MATRIX
+        num_ec = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+        LOG.error("Equivalence Class Count: {0:,}".format(num_ec))
+
+        num_nnz = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+        LOG.error("Non-zero Count: {0:,}".format(num_nnz))
+
+        # row offsets
+        indptr = np.fromfile(f, dtype=np.dtype('i'), count=num_ec + 1)
+        LOG.error(indptr)
+
+        # columns
+        indices = np.fromfile(f, dtype=np.dtype('i'), count=num_nnz)
+        LOG.error(indices)
+
+        # data
+        data = np.fromfile(f, dtype=np.dtype('i'), count=num_nnz)
+        LOG.error(data)
+
+        # ALIGNMENTS
+
+        num_alignments = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+        LOG.error("Alignment Count: {0:,}".format(num_alignments))
+
+        temp_alignments = np.fromfile(f, dtype=np.dtype('i'), count=num_alignments*3)
+        LOG.error(temp_alignments)
+        ec.alignments = []
+
+        for i in xrange(0, num_alignments*3, 3):
+            ec_index = temp_alignments[i]
+            target_index = temp_alignments[i+1]
+            bit_flag = temp_alignments[i+2]
+            ec.alignments.append((ec_index, target_index, bit_flag))
+            LOG.info("{} {} {}".format(ec_index, target_index, bit_flag))
+
+        LOG.error('done version 3')
 
     return ec
 
