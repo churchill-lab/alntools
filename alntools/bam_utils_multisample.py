@@ -840,7 +840,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             summat = apm.data[-1].copy()
 
             LOG.info("Haplotype sum {}".format(apm.data[0].sum()))
-            for h in xrange(len(final.haplotypes), 0, -1):
+            for h in xrange(len(final.haplotypes) - 2, -1, -1):
                 LOG.debug("Haplotype {}".format(h))
                 LOG.info("Haplotype sum {}".format(apm.data[h].sum()))
                 LOG.info("apm.data[h].nnz {}".format(apm.data[h].sum()))
