@@ -835,16 +835,15 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         else:
             LOG.debug("Creating summary matrix...")
             temp_time = time.time()
-            summat = apm.data[-1].copy()
-            #LOG.info("Haplotype sum {}".format(apm.data[0].sum()))
-            for h in xrange(len(final.haplotypes) - 2, -1, -1):
-                #LOG.debug("Haplotype {}".format(h))
-                #LOG.info("Haplotype sum {}".format(apm.data[h].sum()))
-                #LOG.info("apm.data[h].nnz {}".format(apm.data[h].sum()))
-                summat = summat + ((2 ** h) * apm.data[h])
 
-            #LOG.debug('summat.sum = {}'.format(summat.sum()))
-            #LOG.debug('summat.max = {}'.format(summat.max()))
+            num_haps = len(final.haplotypes)
+            summat = apm.data[0].copy()
+            for h in xrange(1, num_haps):
+                summat = summat + ((2 ** (num_haps - 1 - h)) * apm.data[h])
+
+            LOG.debug('summat.sum = {}'.format(summat.sum()))
+            LOG.debug('summat.max = {}'.format(summat.max()))
+            LOG.debug('summat = {}'.format(summat))
 
             LOG.info("Matrix created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                    utils.format_time(start_time, time.time())))
