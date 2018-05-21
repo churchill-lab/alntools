@@ -167,6 +167,17 @@ def fastqtest(input, chunks, directory, verbose):
     methods.parsefastqtest(input, chunks, directory)
 
 
+@cli.command('dumpec', options_metavar='<options>', short_help='dumpe file information')
+@click.argument('ec_file', metavar='ecfile', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def dumpec(ec_file, verbose):
+    """
+    Dump information about an EC file (ec_file).
+    """
+    utils.configure_logging(verbose)
+    methods.dumpec(ec_file)
+
+
 if __name__ == '__main__':
     cli()
 

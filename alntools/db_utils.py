@@ -148,7 +148,6 @@ def all_sample_ids(db_con):
     return list(dictify_cursor(c))
 
 
-
 def add_gene_count_total(cursor, sample_id, gene_id, read_count):
     cursor.execute('''INSERT INTO gene_count_totals VALUES (?, ?, ?)''', (sample_id, gene_id, read_count))
 
