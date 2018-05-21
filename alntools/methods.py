@@ -186,11 +186,10 @@ class EC:
 
         self.ec_list = []
         self.ec_counts_list = []
-
         self.alignments = []
 
 
-def parse_ec(file_in):
+def parse_ec(file_in, detail=False):
     """
 
     :param file_in:
@@ -203,6 +202,8 @@ def parse_ec(file_in):
     f = open(file_in, 'rb')
 
     ec = EC(file_in)
+
+    LOG.debug("Parsing: {}".format(file_in))
 
     ec.version = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
 
@@ -220,17 +221,15 @@ def parse_ec(file_in):
     num_targets = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
     LOG.info("Target Count: {0:,}".format(num_targets))
 
-    ec._targets_list = []
-    ec._targets_dict = OrderedDict()
-
     for i in xrange(0, num_targets):
         str_len = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
         target = np.fromfile(f, dtype=np.dtype('a' + str(str_len)), count=1)[0]
         ec.targets_dict[target] = i
         ec.targets_list.append(target)
+        LOG.debug("{} {}".format(i, target))
 
-    LOG.debug('ec.targets_list[0:10]={}'.format(str(ec.targets_list[0:10])))
-    LOG.debug('len(ec.targets_list)={}'.format(len(ec.targets_list)))
+    #LOG.debug('ec.targets_list[0:10]={}'.format(str(ec.targets_list[0:10])))
+    #LOG.debug('len(ec.targets_list)={}'.format(len(ec.targets_list)))
 
     # HAPLOTYPES
 
@@ -245,6 +244,7 @@ def parse_ec(file_in):
         haplotype = np.fromfile(f, dtype=np.dtype('a' + str(str_len)), count=1)[0]
         ec.haplotypes_dict[haplotype] = i
         ec.haplotypes_list.append(haplotype)
+        LOG.debug("{} {}".format(i, haplotype))
 
     if ec.version == 0:
         # READS
@@ -260,6 +260,7 @@ def parse_ec(file_in):
             read_id = np.fromfile(f, dtype=np.dtype('a' + str(str_len)), count=1)[0]
             ec.reads_dict[read_id] = i
             ec.reads_list.append(read_id)
+            LOG.debug("{} {}".format(i, read_id))
 
         # ALIGNMENTS
 
@@ -274,6 +275,7 @@ def parse_ec(file_in):
             target_index = temp_alignments[i+1]
             bit_flag = temp_alignments[i+2]
             ec.alignments.append((read_index, target_index, bit_flag))
+            LOG.debug("{} {} {}  # {} {} {} ".format(read_index, target_index, bit_flag, ec.reads_list[read_index], ec.targets_list[target_index], bit_flag))
     else:
         num_ec = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
         LOG.info("Equivalance Class Count: {0:,}".format(num_ec))
@@ -294,6 +296,7 @@ def parse_ec(file_in):
             target_index = temp_alignments[i+1]
             bit_flag = temp_alignments[i+2]
             ec.alignments.append((ec_index, target_index, bit_flag))
+            LOG.debug("{} {} {}  # {} {} {} ".format(ec_index, target_index, bit_flag, ec.ec_list[ec_index], ec.targets_list[target_index], bit_flag))
 
     return ec
 
@@ -371,6 +374,11 @@ def ec2emase(file_in, file_out):
                                                    utils.format_time(temp_time, time.time()),
                                                    utils.format_time(start_time, time.time())))
 
+
+
+
+def dumpec(ec_filename, detail=False):
+    parse_ec(ec_filename, detail)
 
 def bam2ec(bam_filename, ec_filename, num_chunks=0, target_filename=None, temp_dir=None, range_filename=None):
     bam_utils.convert(bam_filename, ec_filename, num_chunks=num_chunks, target_filename=target_filename, emase=False, temp_dir=temp_dir, range_filename=range_filename)

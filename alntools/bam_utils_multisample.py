@@ -12,7 +12,7 @@ import sys
 import time
 
 from Bio import bgzf
-from scipy.sparse import coo_matrix
+from scipy.sparse import coo_matrix, lil_matrix
 
 import numpy as np
 import pysam
@@ -734,100 +734,98 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     ec_arr_max = -1
     target_arr_max = -1
 
-    if emase:
-        try:
-            temp_time = time.time()
-            LOG.info('Constructing APM structure...')
+    try:
+        temp_time = time.time()
+        LOG.info('Constructing APM structure...')
 
-            new_shape = (len(final.main_targets), len(final.haplotypes), len(final.ec))
+        new_shape = (len(final.main_targets),
+                     len(final.haplotypes),
+                     len(final.ec))
 
-            ec_ids = [x for x in xrange(0, len(final.ec))]
+        LOG.debug('Shape={}'.format(new_shape))
 
-            # ec.values -> the number of times this equivalence class has appeared
+        # final.ec.values -> the number of times this equivalence class has appeared
 
-            ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
-            target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
+        ec_ids = [x for x in xrange(0, len(final.ec))]
+        ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
+        target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
 
-            # k = comma seperated string of tids
-            # v = the count
-            for k, v in final.ec.iteritems():
-                arr_target_idx = k.split(",")
+        # k = comma seperated string of tids
+        # v = the count
+        for k, v in final.ec.iteritems():
+            arr_target_idx = k.split(",")
 
-                # get the main targets by name
-                temp_main_targets = set()
-                for idx in arr_target_idx:
-                    temp_main_targets.add(final.target_idx_to_main_target[idx])
+            # get the main targets by name
+            temp_main_targets = set()
+            for idx in arr_target_idx:
+                temp_main_targets.add(final.target_idx_to_main_target[idx])
 
-                #print(k, temp_main_targets)
+            # loop through the targets and haplotypes to get the bits
+            for main_target in temp_main_targets:
+                # main_target is not an index, but a value like 'ENMUST..001'
 
-                # loop through the targets and haplotypes to get the bits
-                for main_target in temp_main_targets:
-                    # main_target is not an index, but a value like 'ENMUST..001'
+                for i, hap in enumerate(final.haplotypes):
 
-                    for i, hap in enumerate(final.haplotypes):
+                    read_transcript = '{}_{}'.format(main_target, hap) # now 'ENMUST..001_A'
 
-                        read_transcript = '{}_{}'.format(main_target, hap) # now 'ENMUST..001_A'
+                    if len(final.haplotypes) == 1 and final.haplotypes[0] == '0':
+                        read_transcript = main_target
 
-                        if len(final.haplotypes) == 1 and final.haplotypes[0] == '0':
-                            read_transcript = main_target
+                    # get the numerical tid corresponding to read_transcript
+                    read_transcript_idx = str(alignment_file.gettid(read_transcript))
 
-                        # get the numerical tid corresponding to read_transcript
-                        read_transcript_idx = str(alignment_file.gettid(read_transcript))
+                    if read_transcript_idx in arr_target_idx:
+                        #LOG.debug("{}\t{}\t{}".format(final.ec_idx[k], final.main_targets[main_target], i))
 
-                        if read_transcript_idx in arr_target_idx:
-                            #LOG.debug("{}\t{}\t{}".format(final.ec_idx[k], final.main_targets[main_target], i))
+                        # main_targets[main_target] = idx of main target
+                        # i = the haplotype
+                        # ec_idx[k] = index of ec
 
-                            # main_targets[main_target] = idx of main target
-                            # i = the haplotype
-                            # ec_idx[k] = index of ec
+                        #apm.set_value(final.main_targets[main_target], i, final.ec_idx[k], 1)
 
-                            #apm.set_value(final.main_targets[main_target], i, final.ec_idx[k], 1)
+                        ec_arr[i].append(final.ec_idx[k])
+                        target_arr[i].append(final.main_targets[main_target])
+                        ec_arr_max = max(ec_arr_max, final.ec_idx[k])
+                        target_arr_max = max(target_arr_max, final.main_targets[main_target])
 
-                            ec_arr[i].append(final.ec_idx[k])
-                            target_arr[i].append(final.main_targets[main_target])
-                            ec_arr_max = max(ec_arr_max, final.ec_idx[k])
-                            target_arr_max = max(target_arr_max, final.main_targets[main_target])
+        apm = APM(shape=new_shape,
+                  haplotype_names=final.haplotypes,
+                  locus_names=final.main_targets.keys(),
+                  read_names=ec_ids,
+                  sample_names=final.CRS.keys())
 
-            LOG.debug('APM shape={}'.format(new_shape))
+        for h in xrange(0, len(final.haplotypes)):
+            d = np.ones(len(ec_arr[h]))
+            apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
 
-            apm = APM(shape=new_shape,
-                      haplotype_names=final.haplotypes,
-                      locus_names=final.main_targets.keys(),
-                      read_names=ec_ids,
-                      sample_names=final.CRS.keys())
+        # now ER by UR
+        # OLD: apm.count = final.ec.values()
 
-            for h in xrange(0, len(final.haplotypes)):
-                d = np.ones(len(ec_arr[h]))
-                apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
+        LOG.debug('Constructing CRS...')
+        LOG.debug('CRS dimensions: {:,} x {:,}'.format(len(final.ec), len(final.CRS)))
+        LOG.debug('Constructing CRS...')
 
-            # now ER by UR
-            # OLD: apm.count = final.ec.values()
+        #print final.CRS_idx
+        #print len(final.CRS)
+        #print len(final.CRS_idx)
 
-            LOG.debug('Constructing CRS...')
-            LOG.debug('CRS dimensions: {:,} x {:,}'.format(len(final.ec), len(final.CRS)))
-            LOG.debug('Constructing CRS...')
+        npa = lil_matrix((len(final.ec), len(final.CRS)), dtype=np.int32)
+        i = 0
+        for eckey, crs in final.ec.iteritems():
+            # k = commas seperated list (eckey)
+            # v = dict of CRS and counts
+            for crskey, crscount in crs.iteritems():
+                npa[i, final.CRS_idx[crskey]] = crs[crskey]
+            i += 1
 
-            #print final.CRS_idx
-            #print len(final.CRS)
-            #print len(final.CRS_idx)
+        LOG.info("NPA SUM: {:,}".format(npa.sum()))
 
-            npa = np.zeros((len(final.ec), len(final.CRS)))
-            i = 0
-            for eckey, crs in final.ec.iteritems():
-                # k = commas seperated list (eckey)
-                # v = dict of CRS and counts
-                for crskey, crscount in crs.iteritems():
-                    #print i, crskey, final.CRS_idx[crskey]
-                    npa[i, final.CRS_idx[crskey]] = crs[crskey]
-                i += 1
+        apm.count = npa
 
-            LOG.info("NPA SUM: {:,}".format(npa.sum()))
+        LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                            utils.format_time(start_time, time.time())))
 
-            apm.count = npa #.reshape((len(final.ec), len(final.CRS)))
-
-            LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                                utils.format_time(start_time, time.time())))
-
+        if emase:
             temp_time = time.time()
             LOG.info("Flushing to disk...")
             apm.finalize()
@@ -836,37 +834,93 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
-        except Exception as e:
-            LOG.fatal("ERROR: {}".format(str(e)))
-            raise e
-    else:
-        try:
+        else:
+            LOG.debug("Creating summary matrix...")
+            temp_time = time.time()
+            summat = apm.data[0].copy()
+            #LOG.info("Haplotype sum {}".format(apm.data[0].sum()))
+            for h in xrange(1, len(final.haplotypes)):
+                #LOG.debug("Haplotype {}".format(h))
+                #LOG.info("Haplotype sum {}".format(apm.data[h].sum()))
+                #LOG.info("apm.data[h].nnz {}".format(apm.data[h].sum()))
+                summat = summat + ((2 ** h) * apm.data[h])
+
+            #LOG.debug('summat.sum = {}'.format(summat.sum()))
+            #LOG.debug('summat.max = {}'.format(summat.max()))
+
+            LOG.info("Matrix created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                                   utils.format_time(start_time, time.time())))
+
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
             with gzip.open(output_filename, 'wb') as f:
-                # version
+                # FORMAT
                 f.write(pack('<i', 2))
-                LOG.info("VERSION: 2")
+                LOG.info("FORMAT: 2")
 
-                # targets
+                #
+                # SECTION: TARGETS
+                #     [# of TARGETS = T]
+                #     [length of TARGET 1 text][TARGET 1 text]
+                #     ...
+                #     [length of TARGET T text][TARGET T text]
+                #
+                # Example:
+                #     80000
+                #     18 ENSMUST00000156068
+                #     18 ENSMUST00000209341
+                #     ...
+                #     18 ENSMUST00000778019
+                #
+
                 LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
                 f.write(pack('<i', len(final.main_targets)))
                 for main_target, idx in final.main_targets.iteritems():
-                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+                    # LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
                     f.write(pack('<i', len(main_target)))
                     f.write(pack('<{}s'.format(len(main_target)), main_target))
 
-                # haplotypes
+                #
+                # SECTION: HAPLOTYPES
+                #     [# of HAPLOTYPES = H]
+                #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
+                #     ...
+                #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
+                #
+                # Example:
+                #     8
+                #     1 A
+                #     1 B
+                #     1 C
+                #     1 D
+                #     1 E
+                #     1 F
+                #     1 G
+                #     1 H
+                #
+
                 LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
                 f.write(pack('<i', len(final.haplotypes)))
                 for idx, hap in enumerate(final.haplotypes):
-                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+                    # LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
                     f.write(pack('<i', len(hap)))
                     f.write(pack('<{}s'.format(len(hap)), hap))
 
-
                 #
+                # SECTION: CRS
+                #     [# of CRS = C]
+                #     [length of CR 1 text][CR 1 text]
+                #     ...
+                #     [length of CR C text][CR C text]
+                #
+                # Example:
+                #     3
+                #     16 TCGGTAAAGCCGTCGT
+                #     16 GGAACTTAGCCGATTT
+                #     16 TAGTGGTAGAGGTAGA
+                #
+
                 LOG.info("FILTERED CRS: {:,}".format(len(final.CRS)))
                 f.write(pack('<i', len(final.CRS)))
                 for CR, idx in final.CRS.iteritems():
@@ -874,111 +928,105 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     f.write(pack('<i', len(CR)))
                     f.write(pack('<{}s'.format(len(CR)), CR))
 
-                # equivalence classes
-                LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(final.ec)))
-                LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(ec_totals)))
-                f.write(pack('<i', len(ec_totals)))
-                for idx, k in enumerate(ec_totals.keys()):
-                    # ec[k] is the count
-                    #LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
-                    f.write(pack('<i', ec_totals[k]))
+                #
+                # SECTION: EQUIVALENCE CLASS by CELL Matrix ("N" Matrix)
+                #     Instead of storing a "dense" matrix, we store a "sparse"
+                #     matrix utilizing Compressed Sparse Row (CSR) format.
+                #
+                #     C = # of CRs (Cells/Samples)
+                #
+                #     [# of EQUIVALENCE CLASSES (EC) = E]
+                #     [# of NON ZERO counts = L]
+                #     [0]                           #
+                #     [ROW OFFSET 1]                #  indptr
+                #     ...                           #
+                #     [ROW OFFSET C]                #
+                #     [EC INDEX OF FIRST NON ZERO ELEMENT IN CR 1]  #
+                #     [EC INDEX OF FIRST NON ZERO ELEMENT IN CR 2]  # indices
+                #     ...                                           #
+                #     [EC INDEX OF FIRST NON ZERO ELEMENT IN CR L]  #
+                #     [READ COUNT OF FIRST NON ZERO ELEMENT IN CR 1]  #
+                #     [READ COUNT OF FIRST NON ZERO ELEMENT IN CR 2]  # data
+                #     ...                                             #
+                #     [READ COUNT OF FIRST NON ZERO ELEMENT IN CR L]  #
+
+                # Example:
+                #     2000
+                #     27
+                #     0
+                #     1
+                #     ...
+                #     11
+                #     1
+                #     ...
+                #     8
+                #     18
+                #     ...
+                #     11
+                #
+
+                LOG.info("NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
+                f.write(pack('<i', len(final.ec)))
+
+                # NON ZEROS
+                LOG.info("NUMBER OF NON ZERO: {:,}".format(summat.nnz))
+                f.write(pack('<i', summat.nnz))
+
+                npa_csr = npa.tocsr()
+
+                # ROW OFFSETS
+                f.write(pack('<{}i'.format(len(npa_csr.indptr)), *npa_csr.indptr))
+
+                # COLUMNS
+                f.write(pack('<{}i'.format(len(npa_csr.indices)), *npa_csr.indices))
+
+                # DATA
+                f.write(pack('<{}i'.format(len(npa_csr.data)), *npa_csr.data))
+
+                #
+                # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
+                #     [# of ALIGNMENT MAPPINGS (AM) = A]
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 2)
+                #     ...
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM A)
+                #
+                # NOTE:
+                #     HAPLOTYPE flag is an integer that denotes which haplotype
+                #     (allele) a read aligns to given an EC. For example, 00,
+                #     01, 10, and 11 can specify whether a read aligns to the
+                #     1st and/or 2nd haplotype of a transcript.  These binary
+                #     numbers are converted to integers - 0, 1, 2, 3 - and
+                #     stored as the haplotype flag.
+                #
+                # Example:
+                #     5000
+                #     1 2 4
+                #     8 2 1
+                #     ...
+                #     100 200 8
+                #
 
                 LOG.debug("Determining mappings...")
 
-                # equivalence class mappings
-                counter = 0
-                for k, v in final.ec.iteritems():
-                    arr_target_idx = k.split(",")
+                num_mappings = summat.nnz
+                summat = coo_matrix(summat)
 
-                    # get the main targets by name
-                    temp_main_targets = set()
-                    for idx in arr_target_idx:
-                        temp_main_targets.add(final.target_idx_to_main_target[idx])
+                LOG.info("NUMBER OF EQUIVALENCE CLASS MAPPINGS: {:,}".format(num_mappings))
+                f.write(pack('<i', num_mappings))
 
-                    counter += len(temp_main_targets)
-
-                LOG.info("NUMBER OF EQUIVALANCE CLASS MAPPINGS: {:,}".format(counter))
-                f.write(pack('<i', counter))
-
-                for k, v in final.ec.iteritems():
-                    arr_target_idx = k.split(",")
-
-                    # get the main targets by name
-                    temp_main_targets = set()
-                    for idx in arr_target_idx:
-                        temp_main_targets.add(final.target_idx_to_main_target[idx])
-
-                    # loop through the haplotypes and targets to get the bits
-                    for main_target in temp_main_targets:
-                        # main_target is not an index, but a value like 'ENMUST..001'
-
-                        bits = []
-
-                        # TODO: fix this, maybe set a flag
-                        # checking to see if there is more than 1 haplotype and
-                        # not the generic/default one of '0'
-                        if len(final.haplotypes) == 1 and final.haplotypes[0] == '0':
-                            read_transcript_idx = str(alignment_file.gettid(main_target))
-
-                            if read_transcript_idx in arr_target_idx:
-                                bits.append(1)
-                            else:
-                                bits.append(0)
-
-                            #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
-                            f.write(pack('<i', final.ec_idx[k]))
-                            f.write(pack('<i', final.main_targets[main_target]))
-                            f.write(pack('<i', utils.list_to_int(bits)))
-
-                        else:
-                            for hap in final.haplotypes:
-                                read_transcript = '{}_{}'.format(main_target, hap) # now 'ENMUST..001_A'
-                                read_transcript_idx = str(alignment_file.gettid(read_transcript))
-
-                                if read_transcript_idx in arr_target_idx:
-                                    bits.append(1)
-                                else:
-                                    bits.append(0)
-
-                            #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
-                            f.write(pack('<i', final.ec_idx[k]))
-                            f.write(pack('<i', final.main_targets[main_target]))
-                            f.write(pack('<i', utils.list_to_int(bits)))
-
-                LOG.info("DUMPING NP: {:,}".format(len(final.ec) * len(final.CRS)))
-                #npa = np.zeros((len(final.ec), len(final.CRS)))
-                #i = 0
-                #for eckey, crs in final.ec.iteritems():
-                #    # k = commas seperated list (eckey)
-                #    # v = dict of CRS and counts
-                #    for crskey, crscount in crs.iteritems():
-                #        # print i, crskey, final.CRS_idx[crskey]
-                #        npa[i, final.CRS_idx[crskey]] = crs[crskey]
-                #    i += 1
-
-                #memfile = io.BytesIO()
-                #np.save(memfile, npa)
-                #f.write(struct.pack('L', memfile.tell()))
-                #f.write(memfile.getvalue())
-
-                i = 0
-                for idx, CRS in final.CRS.iteritems():
-                    dump = [0] * len(final.ec.keys())
-                    for k, v in final.ec.iteritems():
-                        if CRS in v:
-                            dump[idx] = v[CRS]
-
-                    LOG.debug("{:,}".format(i))
-                    i += 1
-                    f.write(pack('<{}i'.format(len(dump)), *dump))
-
+                for i, d in enumerate(summat.data):
+                    # LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
+                    f.write(pack('<i', summat.row[i]))
+                    f.write(pack('<i', summat.col[i]))
+                    f.write(pack('<i', d))
 
             LOG.info("{} created in {}, total time: {}".format(output_filename,
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
-        except Exception as e:
-            LOG.error("Error: {}".format(str(e)))
+    except Exception as e:
+        LOG.error("Error: {}".format(str(e)))
 
 
 def split_bam(filename, n, directory=None):
