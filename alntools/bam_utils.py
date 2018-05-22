@@ -851,121 +851,120 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            f = open(output_filename, "wb")
+            with gzip.open(output_filename, 'wb') as f:
+            #with open(output_filename, 'wb') as f:
 
-            # format
-            f.write(pack('<i', 1))
-            LOG.info("FORMAT: 1")
+                # format
+                f.write(pack('<i', 1))
+                LOG.info("FORMAT: 1")
 
-            #
-            # SECTION: TARGETS
-            #     [# of TARGETS = T]
-            #     [length of TARGET 1 text][TARGET 1 text]
-            #     ...
-            #     [length of TARGET T text][TARGET T text]
-            #
-            # Example:
-            #     80000
-            #     18 ENSMUST00000156068
-            #     18 ENSMUST00000209341
-            #     ...
-            #     18 ENSMUST00000778019
-            #
+                #
+                # SECTION: TARGETS
+                #     [# of TARGETS = T]
+                #     [length of TARGET 1 text][TARGET 1 text]
+                #     ...
+                #     [length of TARGET T text][TARGET T text]
+                #
+                # Example:
+                #     80000
+                #     18 ENSMUST00000156068
+                #     18 ENSMUST00000209341
+                #     ...
+                #     18 ENSMUST00000778019
+                #
 
-            LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
-            f.write(pack('<i', len(final.main_targets)))
-            for main_target, idx in final.main_targets.iteritems():
-                LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-                f.write(pack('<i', len(main_target)))
-                f.write(pack('<{}s'.format(len(main_target)), main_target))
+                LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
+                f.write(pack('<i', len(final.main_targets)))
+                for main_target, idx in final.main_targets.iteritems():
+                    LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+                    f.write(pack('<i', len(main_target)))
+                    f.write(pack('<{}s'.format(len(main_target)), main_target))
 
-            #
-            # SECTION: HAPLOTYPES
-            #     [# of HAPLOTYPES = H]
-            #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
-            #     ...
-            #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
-            #
-            # Example:
-            #     8
-            #     1 A
-            #     1 B
-            #     1 C
-            #     1 D
-            #     1 E
-            #     1 F
-            #     1 G
-            #     1 H
-            #
+                #
+                # SECTION: HAPLOTYPES
+                #     [# of HAPLOTYPES = H]
+                #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
+                #     ...
+                #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
+                #
+                # Example:
+                #     8
+                #     1 A
+                #     1 B
+                #     1 C
+                #     1 D
+                #     1 E
+                #     1 F
+                #     1 G
+                #     1 H
+                #
 
-            LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
-            f.write(pack('<i', len(final.haplotypes)))
-            for idx, hap in enumerate(final.haplotypes):
-                LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
-                f.write(pack('<i', len(hap)))
-                f.write(pack('<{}s'.format(len(hap)), hap))
+                LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
+                f.write(pack('<i', len(final.haplotypes)))
+                for idx, hap in enumerate(final.haplotypes):
+                    LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+                    f.write(pack('<i', len(hap)))
+                    f.write(pack('<{}s'.format(len(hap)), hap))
 
-            #
-            # SECTION: EQUIVALENCE CLASSES
-            #     [# of EC = E]
-            #     [counts of EC 1]
-            #     ...
-            #     [counts of EC E]
-            #
-            # Example:
-            #     200
-            #     22
-            #     10001
-            #     ...
-            #     729
-            #
+                #
+                # SECTION: EQUIVALENCE CLASSES
+                #     [# of EC = E]
+                #     [counts of EC 1]
+                #     ...
+                #     [counts of EC E]
+                #
+                # Example:
+                #     200
+                #     22
+                #     10001
+                #     ...
+                #     729
+                #
 
-            LOG.info("NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
-            f.write(pack('<i', len(final.ec)))
-            for idx, k in enumerate(final.ec.keys()):
-                # ec[k] is the count
-                LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
-                f.write(pack('<i', final.ec[k]))
+                LOG.info("NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
+                f.write(pack('<i', len(final.ec)))
+                for idx, k in enumerate(final.ec.keys()):
+                    # ec[k] is the count
+                    LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
+                    f.write(pack('<i', final.ec[k]))
 
-            #
-            # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
-            #     [# of ALIGNMENT MAPPINGS (AM) = A]
-            #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
-            #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 2)
-            #     ...
-            #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM A)
-            #
-            # NOTE:
-            #     HAPLOTYPE flag is an integer that denotes which haplotype
-            #     (allele) a read aligns to given an EC. For example, 00, 01,
-            #     10, and 11 can specify whether a read aligns to the 1st
-            #     and/or 2nd haplotype of a transcript.  These binary numbers
-            #     are converted to integers - 0, 1, 2, 3 - and stored as the
-            #     haplotype flag.
-            #
-            # Example:
-            #     5000
-            #     1 2 4
-            #     8 2 1
-            #     ...
-            #     100 200 8
-            #
+                #
+                # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
+                #     [# of ALIGNMENT MAPPINGS (AM) = A]
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 2)
+                #     ...
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM A)
+                #
+                # NOTE:
+                #     HAPLOTYPE flag is an integer that denotes which haplotype
+                #     (allele) a read aligns to given an EC. For example, 00, 01,
+                #     10, and 11 can specify whether a read aligns to the 1st
+                #     and/or 2nd haplotype of a transcript.  These binary numbers
+                #     are converted to integers - 0, 1, 2, 3 - and stored as the
+                #     haplotype flag.
+                #
+                # Example:
+                #     5000
+                #     1 2 4
+                #     8 2 1
+                #     ...
+                #     100 200 8
+                #
 
-            LOG.debug("Determining mappings...")
+                LOG.debug("Determining mappings...")
 
-            num_mappings = summat.nnz
-            summat = coo_matrix(summat)
+                num_mappings = summat.nnz
+                summat = coo_matrix(summat)
 
-            LOG.info("NUMBER OF EQUIVALENCE CLASS MAPPINGS: {:,}".format(num_mappings))
-            f.write(pack('<i', num_mappings))
+                LOG.info("NUMBER OF EQUIVALENCE CLASS MAPPINGS: {:,}".format(num_mappings))
+                f.write(pack('<i', num_mappings))
 
-            for i, d in enumerate(summat.data):
-                #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
-                f.write(pack('<i', summat.row[i]))
-                f.write(pack('<i', summat.col[i]))
-                f.write(pack('<i', d))
-
-            f.close()
+                for i, d in enumerate(summat.data):
+                    #LOG.debug("{}\t{}\t{}\t# {}\t{}".format(final.ec_idx[k], final.main_targets[main_target], utils.list_to_int(bits), main_target, bits))
+                    f.write(pack('<i', summat.row[i]))
+                    f.write(pack('<i', summat.col[i]))
+                    f.write(pack('<i', d))
 
             LOG.info("{} created in {}, total time: {}".format(output_filename,
                                                                utils.format_time(temp_time, time.time()),

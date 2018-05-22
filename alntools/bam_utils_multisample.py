@@ -852,8 +852,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            #with gzip.open(output_filename, 'wb') as f:
-            with open(output_filename, 'wb') as f:
+            with gzip.open(output_filename, 'wb') as f:
+            #with open(output_filename, 'wb') as f:
                 # FORMAT
                 f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")
