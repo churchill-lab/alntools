@@ -260,7 +260,7 @@ def process_convert_bam(cp):
     valid_alignments = 0
     ec_key = None
     temp_name = os.path.join(cp.temp_dir, '_bam2ec.')
-    generic_haplotype = '0'
+    generic_haplotype = ''
 
     reference_id = None
     reference_ids = []
@@ -514,7 +514,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     temp_time = time.time()
     args = zip(all_params)
     pool = multiprocessing.Pool(num_processes)
-    results = pool.map(wrapper_convert, args)
+    results = pool.imap(wrapper_convert, args)
 
     LOG.info("All processes done in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
@@ -710,6 +710,9 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 vals = []
 
                 for haplotype in final.haplotypes:
+                    #
+                    # TODO: range file has haplotypes or not???
+                    #
                     read_transcript = '{}_{}'.format(main_target, haplotype)
                     read_transcript_idx = str(alignment_file.gettid(read_transcript))
 
@@ -768,7 +771,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
                     read_transcript = '{}_{}'.format(main_target, hap) # now 'ENMUST..001_A'
 
-                    if len(final.haplotypes) == 1 and final.haplotypes[0] == '0':
+                    if len(final.haplotypes) == 1 and final.haplotypes[0] == '':
                         read_transcript = main_target
 
                     # get the numerical tid corresponding to read_transcript

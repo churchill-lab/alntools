@@ -32,35 +32,25 @@ ParseRecord = namedtuple("ParseRecord", parse_fields)
 
 
 class ConvertParams(object):
-    """
-    # each core needs
-    # - name of alignment file
-    # - header size
-    # - target file
-    # - list of files to create and work on
-    #   - idx, vo_start, vo_end
-
-    """
-    slots = ['input_file', 'target_file', 'temp_dir', 'process_id', 'data', 'emase', 'track_ranges']
+    slots = ['input_file', 'temp_dir', 'process_id', 'track_ranges', 'data']
 
     def __init__(self):
         self.input_file = None
-        self.target_file = None
         self.temp_dir = None
         self.process_id = None
-        self.data = [] # tuple of (idx, ParseRecord)
-        self.emase = False
         self.track_ranges = False
+
+        # tuple of (idx, ParseRecord)
+        self.data = []
 
     def __str__(self):
         return "Input: {}\nProcess ID: {}\nData: {}".format(self.input_file, self.process_id, self.data)
 
 
 class ConvertResults(object):
-    slots = ['main_targets', 'valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges']
+    slots = ['valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges']
 
     def __init__(self):
-        self.main_targets = None
         self.valid_alignments = None
         self.all_alignments = None
         self.ec = None
@@ -73,20 +63,10 @@ class ConvertResults(object):
 
 
 class RangeParams(object):
-    """
-    # each core needs
-    # - name of alignment file
-    # - header size
-    # - target file
-    # - list of files to create and work on
-    #   - idx, vo_start, vo_end
-
-    """
-    slots = ['input_file', 'target_file', 'temp_dir', 'process_id']
+    slots = ['input_file', 'temp_dir', 'process_id']
 
     def __init__(self):
         self.input_file = None
-        self.target_file = None
         self.temp_dir = None
         self.process_id = None
 
@@ -215,8 +195,6 @@ def chunk_bam_file(bam_filename, new_filename, parse_rec):
     fix_bam(new_filename)
 
 
-
-
 def process_convert_bam(cp):
     """
 
@@ -224,33 +202,31 @@ def process_convert_bam(cp):
     """
     LOG.debug('Process ID: {}, Input File: {}'.format(cp.process_id, cp.input_file))
 
-    if cp.target_file:
-        LOG.debug('Process ID: {}, Target File: {}'.format(cp.process_id, cp.target_file))
-
-    if cp.emase:
-        LOG.debug('Process ID: {}, Emase format requested'.format(cp.process_id))
-
     validate_bam(cp.input_file)
 
     main_targets = OrderedDict()
 
-    if cp.target_file:
-        main_targets = utils.parse_targets(cp.target_file)
-        if len(main_targets) == 0:
-            LOG.error("Unable to parse target file")
-            sys.exit(-1)
-    else:
+    try:
         tmp = {}
         alignment_file = pysam.AlignmentFile(cp.input_file, "rb")
+
         for target in alignment_file.references:
             idx_underscore = target.rfind('_')
-            main_target = target[:idx_underscore]
+
+            if idx_underscore > 0:
+                main_target = target[:idx_underscore]
+            else:
+                main_target = target
+
             if main_target not in tmp:
                 tmp[main_target] = main_target
+
         main_targets_tmp = sorted(tmp.keys())
+
         for t in main_targets_tmp:
             main_targets[t] = len(main_targets)
-        alignment_file.close()
+    except Exception as e:
+        LOG.error('Unable to parse main targets')
 
     # reference_id: the reference sequence number as defined in the header
     # reference_name: name (None if no AlignmentFile is associated)
@@ -262,7 +238,8 @@ def process_convert_bam(cp):
 
     # ec_idx = lookup to ec
     #          the KEY is a comma separated string of reference_ids
-    #          the VALUE is a number specifying the insertion order of the KEY value in ec
+    #          the VALUE is a number specifying the insertion order of
+    #               the KEY value in ec
     ec_idx = {}
 
     # all the haplotypes
@@ -333,27 +310,35 @@ def process_convert_bam(cp):
                     reference_sequence_name = alignment.reference_name
                     reference_id = str(alignment.reference_id)
                     idx_underscore = reference_sequence_name.rfind('_')
-                    main_target = reference_sequence_name[:idx_underscore]
 
-                    if cp.track_ranges:
-                        min_max = ranges.get(reference_id, (100000000000, -1))
-                        n = min(min_max[0], alignment.reference_start)
-                        x = max(min_max[1], alignment.reference_start)
-                        ranges[reference_id] = (n,x)
+                    if idx_underscore > 0:
+                        main_target = reference_sequence_name[:idx_underscore]
 
-                    if cp.target_file:
-                        if main_target not in main_targets:
-                            LOG.error("Unexpected target found in BAM file: {}".format(main_target))
-                            sys.exit(-1)
+                        if cp.track_ranges:
+                            min_max = ranges.get(reference_id, (100000000000, -1))
+                            n = min(min_max[0], alignment.reference_start)
+                            x = max(min_max[1], alignment.reference_start)
+                            ranges[reference_id] = (n, x)
 
-                    reference_id_to_main_target[reference_id] = main_target
+                        reference_id_to_main_target[reference_id] = main_target
 
-                    try:
-                        haplotype = reference_sequence_name[idx_underscore+1:]
-                        haplotypes.add(haplotype)
-                    except:
-                        LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
-                        return
+                        try:
+                            haplotype = reference_sequence_name[idx_underscore + 1:]
+                            haplotypes.add(haplotype)
+                        except:
+                            LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
+                            return
+                    else:
+                        main_target = reference_sequence_name
+                        if cp.track_ranges:
+                            min_max = ranges.get(reference_id, (100000000000, -1))
+                            n = min(min_max[0], alignment.reference_start)
+                            x = max(min_max[1], alignment.reference_start)
+                            ranges[reference_id] = (n, x)
+
+                        reference_id_to_main_target[reference_id] = main_target
+
+                        haplotypes.add('')
 
                     # query_name = Column 1 from file, the Query template NAME
                     if query_name is None:
@@ -380,7 +365,6 @@ def process_convert_bam(cp):
                             ec[ec_key] += 1
                         except KeyError:
                             ec[ec_key] = 1
-                            ec_idx[ec_key] = len(ec_idx)
 
                         query_name = alignment.query_name
                         i = query_name.find(' ')
@@ -403,7 +387,6 @@ def process_convert_bam(cp):
                     "DONE Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(
                         cp.process_id, temp_file, valid_alignments, all_alignments, len(ec)))
 
-
             #LOG.info("{0:,} alignments processed, with {1:,} equivalence classes".format(line_no, len(ec)))
             if reference_id not in reference_ids:
                 reference_ids.append(reference_id)
@@ -414,7 +397,6 @@ def process_convert_bam(cp):
                 ec[ec_key] += 1
             except KeyError:
                 ec[ec_key] = 1
-                ec_idx[ec_key] = len(ec_idx)
 
             utils.delete_file(temp_file)
 
@@ -425,20 +407,21 @@ def process_convert_bam(cp):
 
     LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
     LOG.debug("Process ID: {}, # Reads/Target Duplications: {:,}".format(cp.process_id, same_read_target_counter))
-    LOG.debug("Process ID: {}, # Main Targets: {:,}".format(cp.process_id, len(main_targets)))
     LOG.debug("Process ID: {}, # Haplotypes: {:,}".format(cp.process_id, len(haplotypes)))
     LOG.debug("Process ID: {}, # Equivalence Classes: {:,}".format(cp.process_id, len(ec)))
 
     ret = ConvertResults()
-    ret.main_targets = main_targets
     ret.valid_alignments = valid_alignments
     ret.all_alignments = all_alignments
     ret.ec = ec
-    ret.ec_idx = ec_idx
     ret.haplotypes = haplotypes
     ret.target_idx_to_main_target = reference_id_to_main_target
     ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
+
+    # removed, because we can save "pickling" space and just do on first combine
+    #ret.ec_idx = ec_idx
+
 
     return ret
 
@@ -450,30 +433,10 @@ def process_range_bam(rp):
     """
     LOG.debug('Process ID: {}, Input File: {}'.format(rp.process_id, rp.input_file))
 
-    if rp.target_file:
-        LOG.debug('Process ID: {}, Target File: {}'.format(rp.process_id, rp.target_file))
-
     validate_bam(rp.input_file)
 
     main_targets = OrderedDict()
 
-    if rp.target_file:
-        main_targets = utils.parse_targets(rp.target_file)
-        if len(main_targets) == 0:
-            LOG.error("Unable to parse target file")
-            sys.exit(-1)
-    else:
-        tmp = {}
-        alignment_file = pysam.AlignmentFile(rp.input_file, "rb")
-        for target in alignment_file.references:
-            idx_underscore = target.rfind('_')
-            main_target = target[:idx_underscore]
-            if main_target not in tmp:
-                tmp[main_target] = main_target
-        main_targets_tmp = sorted(tmp.keys())
-        for t in main_targets_tmp:
-            main_targets[t] = len(main_targets)
-        alignment_file.close()
 
     # reference_id: the reference sequence number as defined in the header
     # reference_name: name (None if no AlignmentFile is associated)
@@ -492,7 +455,21 @@ def process_range_bam(rp):
     #temp_name = os.path.join(rp.temp_dir, '_bam2ec.')
 
     try:
-        alignment_file = pysam.AlignmentFile(rp.input_file)
+        tmp = {}
+        alignment_file = pysam.AlignmentFile(rp.input_file, "rb")
+        for target in alignment_file.references:
+
+            idx_underscore = target.rfind('_')
+            if idx_underscore > 0:
+                main_target = target[:idx_underscore]
+            else:
+                main_target = target
+
+            if main_target not in tmp:
+                tmp[main_target] = main_target
+        main_targets_tmp = sorted(tmp.keys())
+        for t in main_targets_tmp:
+            main_targets[t] = len(main_targets)
 
         while True:
             alignment = alignment_file.next()
@@ -517,25 +494,37 @@ def process_range_bam(rp):
 
             reference_sequence_name = alignment.reference_name
             reference_id = str(alignment.reference_id)
+
             idx_underscore = reference_sequence_name.rfind('_')
-            main_target = reference_sequence_name[:idx_underscore]
 
-            min_max = ranges.get(reference_id, (100000000000, -1))
-            n = min(min_max[0], alignment.reference_start)
-            x = max(min_max[1], alignment.reference_start)
-            ranges[reference_id] = (n, x)
+            if idx_underscore > 0:
+                main_target = reference_sequence_name[:idx_underscore]
 
-            if rp.target_file:
-                if main_target not in main_targets:
-                    LOG.error("Unexpected target found in BAM file: {}".format(main_target))
-                    sys.exit(-1)
+                if rp.track_ranges:
+                    min_max = ranges.get(reference_id, (100000000000, -1))
+                    n = min(min_max[0], alignment.reference_start)
+                    x = max(min_max[1], alignment.reference_start)
+                    ranges[reference_id] = (n,x)
 
-            try:
-                haplotype = reference_sequence_name[idx_underscore+1:]
-                haplotypes.add(haplotype)
-            except:
-                LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
-                return
+                reference_id_to_main_target[reference_id] = main_target
+
+                try:
+                    haplotype = reference_sequence_name[idx_underscore+1:]
+                    haplotypes.add(haplotype)
+                except:
+                    LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
+                    return
+            else:
+                main_target = reference_sequence_name
+                if rp.track_ranges:
+                    min_max = ranges.get(reference_id, (100000000000, -1))
+                    n = min(min_max[0], alignment.reference_start)
+                    x = max(min_max[1], alignment.reference_start)
+                    ranges[reference_id] = (n, x)
+
+                reference_id_to_main_target[reference_id] = main_target
+
+                haplotypes.add('')
 
             if all_alignments % 100000 == 0:
                 LOG.debug("Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}".format(rp.process_id, rp.input_file, valid_alignments, all_alignments))
@@ -582,11 +571,6 @@ def wrapper_range(args):
     #print(str(args))
     return process_range_bam(*args)
 
-# barcode_file
-# read_id
-# sequence
-# +
-# quality
 
 def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, range_filename=None):
     """
@@ -612,12 +596,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                                                                    utils.format_time(temp_time, time.time()),
                                                                    utils.format_time(start_time, time.time())))
 
-    # each core needs
-    # - name of alignment file
-    # - target file
-    # - list of files to create and work on
-    #   - idx, mp_param
-
     all_params = []
 
     pid = 0
@@ -626,7 +604,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         params.input_file = bam_filename
         params.target_file = target_filename
         params.temp_dir = temp_dir
-        params.track_ranges = (range_filename != None)
+        params.track_ranges = (range_filename is not None)
 
         for x, cid in enumerate(temp_chunk_ids):
             params.process_id = pid
@@ -640,34 +618,41 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     final.valid_alignments = 0
     final.all_alignments = 0
     final.ec = OrderedDict()
-    final.ec_idx = {}
     final.haplotypes = set()
-    final.main_targets = OrderedDict()
     final.target_idx_to_main_target = {}
     final.unique_reads = {}
     final.tid_ranges = {}
+
+    alignment_file = pysam.AlignmentFile(bam_filename)
+
+    # get lengths of all transcripts
+    main_targets = OrderedDict()
+    main_target_lengths = {}
+    for idx, ref in enumerate(alignment_file.references):
+        main_target_lengths[ref] = alignment_file.lengths[idx]
+        main_targets[ref] = len(main_targets)
 
     LOG.info("Starting {} processes ...".format(num_processes))
 
     temp_time = time.time()
     args = zip(all_params)
     pool = multiprocessing.Pool(num_processes)
-    results = pool.map(wrapper_convert, args)
 
-    LOG.info("All processes done in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                               utils.format_time(start_time, time.time())))
+    # KEY = ec_key, VALUE = inserted order
+    ec_idx = {}
 
-    LOG.info("Combining {} results ...".format(len(results)))
     temp_time = time.time()
 
-    alignment_file = pysam.AlignmentFile(bam_filename)
-
-    # parse results
-    for idx, result in enumerate(results):
-        LOG.info("Combining result #{}".format(idx))
+    for idx, result in enumerate(pool.imap(wrapper_convert, args)):
+        LOG.info("Process {} done out of {}, combining result".format(idx, len(all_params)))
         if not final.init:
             final = result
             final.init = True
+
+            # k = ec value, v = count
+            for k, v in final.ec.iteritems():
+                ec_idx[k] = len(ec_idx)
+
         else:
             # combine ec
             LOG.debug("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
@@ -676,7 +661,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     final.ec[k] += v
                 else:
                     final.ec[k] = v
-                    final.ec_idx[k] = len(final.ec_idx)
+                    ec_idx[k] = len(ec_idx)
             LOG.debug("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
 
             # combine haplotypes
@@ -721,9 +706,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     LOG.info("All results combined in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
              utils.format_time(start_time, time.time())))
 
-    #LOG.info("# Total Alignments: {:,}".format(final.all_alignments))
     LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
-    LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
+    LOG.info("# Main Targets: {:,}".format(len(main_targets)))
     LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
     LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
@@ -742,7 +726,11 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 vals = []
 
                 for haplotype in final.haplotypes:
-                    read_transcript = '{}_{}'.format(main_target, haplotype)
+                    if len(haplotype) == 0:
+                        read_transcript = main_target
+                    else:
+                        read_transcript = '{}_{}'.format(main_target, haplotype)
+
                     read_transcript_idx = str(alignment_file.gettid(read_transcript))
 
                     try:
@@ -792,8 +780,13 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 # main_target is not an index, but a value like 'ENMUST..001'
 
                 for i, hap in enumerate(final.haplotypes):
-                    # making 'ENMUST..001_A'
-                    read_transcript = '{}_{}'.format(main_target, hap)
+                    if len(hap) == 0:
+                        # leaving as 'ENMUST..001'
+                        read_transcript = main_target
+                    else:
+                        # making 'ENMUST..001_A'
+                        read_transcript = '{}_{}'.format(main_target, hap)
+
                     # get the numerical tid corresponding to read_transcript
                     read_transcript_idx = str(alignment_file.gettid(read_transcript))
 
@@ -805,7 +798,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                         # ec_idx[k] = index of ec
 
                         ec_arr[i].append(final.ec_idx[k])
-                        target_arr[i].append(final.main_targets[main_target])
+                        target_arr[i].append(main_targets[main_target])
 
         apm = APM(shape=new_shape,
                   haplotype_names=final.haplotypes,
@@ -813,7 +806,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                   read_names=ec_ids)
 
         apm.count = final.ec.values()
-        #apm.finalize()
 
         for h in xrange(0, len(final.haplotypes)):
             d = np.ones(len(ec_arr[h]))
@@ -859,28 +851,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 LOG.info("FORMAT: 1")
 
                 #
-                # SECTION: TARGETS
-                #     [# of TARGETS = T]
-                #     [length of TARGET 1 text][TARGET 1 text]
-                #     ...
-                #     [length of TARGET T text][TARGET T text]
-                #
-                # Example:
-                #     80000
-                #     18 ENSMUST00000156068
-                #     18 ENSMUST00000209341
-                #     ...
-                #     18 ENSMUST00000778019
-                #
-
-                LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
-                f.write(pack('<i', len(final.main_targets)))
-                for main_target, idx in final.main_targets.iteritems():
-                    LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-                    f.write(pack('<i', len(main_target)))
-                    f.write(pack('<{}s'.format(len(main_target)), main_target))
-
-                #
                 # SECTION: HAPLOTYPES
                 #     [# of HAPLOTYPES = H]
                 #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
@@ -902,9 +872,34 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
                 f.write(pack('<i', len(final.haplotypes)))
                 for idx, hap in enumerate(final.haplotypes):
-                    LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
                     f.write(pack('<i', len(hap)))
                     f.write(pack('<{}s'.format(len(hap)), hap))
+                    LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+
+                #
+                # SECTION: TARGETS
+                #     [# of TARGETS = T]
+                #     [length TARGET 1 text][TARGET 1 text][HAP 1 length] ... [HAP H length]
+                #     ...
+                #     [length TARGET T text][TARGET T text][HAP 1 length] ... [HAP H length]
+                #
+                # Example:
+                #     80000
+                #     18 ENSMUST00000156068 234
+                #     18 ENSMUST00000209341 1054
+                #     ...
+                #     18 ENSMUST00000778019 1900
+                #
+
+                LOG.info("NUMBER OF TARGETS: {:,}".format(len(main_targets)))
+                f.write(pack('<i', len(main_targets)))
+                for main_target, idx in main_targets.iteritems():
+                    f.write(pack('<i', len(main_target)))
+                    f.write(pack('<{}s'.format(len(main_target)), main_target))
+
+
+                    LOG.debug("{:,}\t{}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+
 
                 #
                 # SECTION: EQUIVALENCE CLASSES
