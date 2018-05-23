@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
-from collections import OrderedDict, namedtuple
+from collections import OrderedDict, namedtuple, defaultdict
 from struct import pack
+import gzip
 import multiprocessing
 import os
 import struct
@@ -48,15 +49,12 @@ class ConvertParams(object):
 
 
 class ConvertResults(object):
-    slots = ['valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'unique_reads', 'init', 'tid_ranges']
+    slots = ['valid_alignments', 'all_alignments', 'ec', 'unique_reads', 'init', 'tid_ranges']
 
     def __init__(self):
         self.valid_alignments = None
         self.all_alignments = None
         self.ec = None
-        self.ec_idx = None
-        self.haplotypes = None
-        self.target_idx_to_main_target = None
         self.unique_reads = None
         self.init = False
         self.tid_ranges = None
@@ -202,31 +200,9 @@ def process_convert_bam(cp):
     """
     LOG.debug('Process ID: {}, Input File: {}'.format(cp.process_id, cp.input_file))
 
+
+
     validate_bam(cp.input_file)
-
-    main_targets = OrderedDict()
-
-    try:
-        tmp = {}
-        alignment_file = pysam.AlignmentFile(cp.input_file, "rb")
-
-        for target in alignment_file.references:
-            idx_underscore = target.rfind('_')
-
-            if idx_underscore > 0:
-                main_target = target[:idx_underscore]
-            else:
-                main_target = target
-
-            if main_target not in tmp:
-                tmp[main_target] = main_target
-
-        main_targets_tmp = sorted(tmp.keys())
-
-        for t in main_targets_tmp:
-            main_targets[t] = len(main_targets)
-    except Exception as e:
-        LOG.error('Unable to parse main targets')
 
     # reference_id: the reference sequence number as defined in the header
     # reference_name: name (None if no AlignmentFile is associated)
@@ -240,29 +216,18 @@ def process_convert_bam(cp):
     #          the KEY is a comma separated string of reference_ids
     #          the VALUE is a number specifying the insertion order of
     #               the KEY value in ec
-    ec_idx = {}
-
-    # all the haplotypes
-    haplotypes = set()
-
-    # a lookup of reference_ids to main_targets (Ensembl IDs)
-    reference_id_to_main_target = {}
 
     # unique reads
     unique_reads = {}
 
     # times encountering new read id
     read_id_switch_counter = 0
-
     same_read_target_counter = 0
 
     ranges = {}
 
-    #pid = os.getpid()
-
     all_alignments = 0
     valid_alignments = 0
-    ec_key = None
     temp_name = os.path.join(cp.temp_dir, '_bam2ec.')
 
     try:
@@ -309,36 +274,6 @@ def process_convert_bam(cp):
 
                     reference_sequence_name = alignment.reference_name
                     reference_id = str(alignment.reference_id)
-                    idx_underscore = reference_sequence_name.rfind('_')
-
-                    if idx_underscore > 0:
-                        main_target = reference_sequence_name[:idx_underscore]
-
-                        if cp.track_ranges:
-                            min_max = ranges.get(reference_id, (100000000000, -1))
-                            n = min(min_max[0], alignment.reference_start)
-                            x = max(min_max[1], alignment.reference_start)
-                            ranges[reference_id] = (n, x)
-
-                        reference_id_to_main_target[reference_id] = main_target
-
-                        try:
-                            haplotype = reference_sequence_name[idx_underscore + 1:]
-                            haplotypes.add(haplotype)
-                        except:
-                            LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
-                            return
-                    else:
-                        main_target = reference_sequence_name
-                        if cp.track_ranges:
-                            min_max = ranges.get(reference_id, (100000000000, -1))
-                            n = min(min_max[0], alignment.reference_start)
-                            x = max(min_max[1], alignment.reference_start)
-                            ranges[reference_id] = (n, x)
-
-                        reference_id_to_main_target[reference_id] = main_target
-
-                        haplotypes.add('')
 
                     # query_name = Column 1 from file, the Query template NAME
                     if query_name is None:
@@ -403,32 +338,24 @@ def process_convert_bam(cp):
     except Exception as e:
         LOG.error("Error: {}".format(str(e)))
 
-    haplotypes = sorted(list(haplotypes))
 
     LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
     LOG.debug("Process ID: {}, # Reads/Target Duplications: {:,}".format(cp.process_id, same_read_target_counter))
-    LOG.debug("Process ID: {}, # Haplotypes: {:,}".format(cp.process_id, len(haplotypes)))
     LOG.debug("Process ID: {}, # Equivalence Classes: {:,}".format(cp.process_id, len(ec)))
 
     ret = ConvertResults()
     ret.valid_alignments = valid_alignments
     ret.all_alignments = all_alignments
     ret.ec = ec
-    ret.haplotypes = haplotypes
-    ret.target_idx_to_main_target = reference_id_to_main_target
     ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
-
-    # removed, because we can save "pickling" space and just do on first combine
-    #ret.ec_idx = ec_idx
-
 
     return ret
 
 
 def process_range_bam(rp):
     """
-
+    NOTE: NOT SURE THIS IS STILL WORKING
     :return:
     """
     LOG.debug('Process ID: {}, Input File: {}'.format(rp.process_id, rp.input_file))
@@ -572,7 +499,7 @@ def wrapper_range(args):
     return process_range_bam(*args)
 
 
-def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, range_filename=None):
+def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, bin=True, temp_dir=None, range_filename=None):
     """
     """
     start_time = time.time()
@@ -627,14 +554,38 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
     # get lengths of all transcripts
     main_targets = OrderedDict()
-    main_target_lengths = {}
-    for idx, ref in enumerate(alignment_file.references):
-        main_target_lengths[ref] = alignment_file.lengths[idx]
-        main_targets[ref] = len(main_targets)
+    main_target_lengths = defaultdict(lambda: defaultdict(int))
+    target_idx_to_main_target = {}
+
+
+    # all the haplotypes
+    haplotypes = set()
+
+    # a lookup of reference_ids to main_targets (Ensembl IDs)
+    reference_id_to_main_target = {}
+
+    for idx, reference_sequence_name in enumerate(alignment_file.references):
+        tid = alignment_file.get_tid(reference_sequence_name)
+        idx_underscore = reference_sequence_name.rfind('_')
+
+        if idx_underscore > 0:
+            main_target = reference_sequence_name[:idx_underscore]
+            haplotype = reference_sequence_name[idx_underscore + 1:]
+        else:
+            main_target = reference_sequence_name
+            haplotype = ''
+
+        target_idx_to_main_target[tid] = main_target
+        reference_id_to_main_target[tid] = main_target
+        haplotypes.add(haplotype)
+
+        main_target_lengths[main_target][haplotype] = alignment_file.lengths[idx]
+        main_targets[main_target] = len(main_targets)
+
+    haplotypes = sorted(list(haplotypes))
 
     LOG.info("Starting {} processes ...".format(num_processes))
 
-    temp_time = time.time()
     args = zip(all_params)
     pool = multiprocessing.Pool(num_processes)
 
@@ -663,20 +614,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     final.ec[k] = v
                     ec_idx[k] = len(ec_idx)
             LOG.debug("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
-
-            # combine haplotypes
-            LOG.debug("CHUNK {}: # Result Haplotypes: {:,}".format(idx, len(result.haplotypes)))
-            s1 = set(final.haplotypes)
-            s2 = set(result.haplotypes)
-            final.haplotypes = sorted(list(s1.union(s2)))
-            LOG.debug("CHUNK {}: # Total Haplotypes: {:,}".format(idx, len(final.haplotypes)))
-
-            # combine target_idx_to_main_target
-            LOG.debug("CHUNK {}: # Result Main Targets: {:,}".format(idx, len(result.main_targets)))
-            for k, v in result.target_idx_to_main_target.iteritems():
-                if k not in final.target_idx_to_main_target:
-                    final.target_idx_to_main_target[k] = v
-            LOG.debug("CHUNK {}: # Total Main Targets: {:,}".format(idx, len(final.main_targets)))
 
             # unique reads
             LOG.debug("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
@@ -716,16 +653,16 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         # tid_stats
         with open(range_filename, "w") as fw:
             fw.write("#\t")
-            fw.write("\t".join(final.haplotypes))
+            fw.write("\t".join(haplotypes))
             fw.write("\n")
 
-            for main_target in final.main_targets:
+            for main_target in main_targets:
                 fw.write(main_target)
                 fw.write("\t")
 
                 vals = []
 
-                for haplotype in final.haplotypes:
+                for haplotype in haplotypes:
                     if len(haplotype) == 0:
                         read_transcript = main_target
                     else:
@@ -755,15 +692,15 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         LOG.info('Constructing temp APM structure...')
 
         # (transcripts, haplotypes, ec)
-        new_shape = (len(final.main_targets),
-                     len(final.haplotypes),
+        new_shape = (len(main_targets),
+                     len(haplotypes),
                      len(final.ec))
 
         LOG.debug('Shape={}'.format(new_shape))
 
         ec_ids = [x for x in xrange(0, len(final.ec))]
-        ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
-        target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
+        ec_arr = [[] for _ in xrange(0, len(haplotypes))]
+        target_arr = [[] for _ in xrange(0, len(haplotypes))]
 
         # k = comma seperated string of tids
         # v = the count
@@ -773,13 +710,13 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             # get the main targets by name
             temp_main_targets = set()
             for idx in arr_target_idx:
-                temp_main_targets.add(final.target_idx_to_main_target[idx])
+                temp_main_targets.add(target_idx_to_main_target[idx])
 
             # loop through the targets and haplotypes to get the bits
             for main_target in temp_main_targets:
                 # main_target is not an index, but a value like 'ENMUST..001'
 
-                for i, hap in enumerate(final.haplotypes):
+                for i, hap in enumerate(haplotypes):
                     if len(hap) == 0:
                         # leaving as 'ENMUST..001'
                         read_transcript = main_target
@@ -797,7 +734,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                         # i = the haplotype
                         # ec_idx[k] = index of ec
 
-                        ec_arr[i].append(final.ec_idx[k])
+                        ec_arr[i].append(ec_idx[k])
                         target_arr[i].append(main_targets[main_target])
 
         apm = APM(shape=new_shape,
@@ -807,11 +744,11 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
         apm.count = final.ec.values()
 
-        for h in xrange(0, len(final.haplotypes)):
+        for h in xrange(0, len(haplotypes)):
             d = np.ones(len(ec_arr[h]))
             apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])),
                                      shape=(len(final.ec),
-                                            len(final.main_targets)))
+                                            len(main_targets)))
 
         LOG.info("Temp APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                  utils.format_time(start_time, time.time())))
@@ -824,11 +761,11 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             LOG.info("{} created in {}, total time: {}".format(output_filename,
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
-        else:
+        if bin:
             LOG.debug("Creating summary matrix...")
             temp_time = time.time()
 
-            num_haps = len(final.haplotypes)
+            num_haps = len(haplotypes)
             summat = apm.data[0].copy()
             for h in xrange(1, num_haps):
                 summat = summat + ((2 ** (num_haps - 1 - h)) * apm.data[h])
@@ -844,8 +781,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             LOG.info("Generating BIN file...")
 
             with gzip.open(output_filename, 'wb') as f:
-            #with open(output_filename, 'wb') as f:
-
                 # format
                 f.write(pack('<i', 1))
                 LOG.info("FORMAT: 1")
@@ -869,9 +804,9 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 #     1 H
                 #
 
-                LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
-                f.write(pack('<i', len(final.haplotypes)))
-                for idx, hap in enumerate(final.haplotypes):
+                LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(haplotypes)))
+                f.write(pack('<i', len(haplotypes)))
+                for idx, hap in enumerate(haplotypes):
                     f.write(pack('<i', len(hap)))
                     f.write(pack('<{}s'.format(len(hap)), hap))
                     LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
@@ -897,9 +832,13 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     f.write(pack('<i', len(main_target)))
                     f.write(pack('<{}s'.format(len(main_target)), main_target))
 
+                    lengths = []
 
-                    LOG.debug("{:,}\t{}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+                    for idx_hap, hap in enumerate(haplotypes):
+                        f.write(pack('<i', main_target_lengths[main_target][hap]))
+                        lengths.append(main_target_lengths[main_target][hap])
 
+                    LOG.debug("{:,}\t{}\t{}\t# {:,}".format(len(main_target), main_target, 't'.join(lengths), idx))
 
                 #
                 # SECTION: EQUIVALENCE CLASSES
