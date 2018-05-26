@@ -45,48 +45,34 @@ class ConvertParams(object):
     #   - idx, vo_start, vo_end
 
     """
-    slots = ['input_file', 'target_file', 'temp_dir', 'process_id', 'data', 'emase', 'track_ranges']
+    slots = ['input_file', 'temp_dir', 'process_id', 'data', 'track_ranges']
 
     def __init__(self):
         self.input_file = None
-        self.target_file = None
         self.temp_dir = None
         self.process_id = None
-        self.data = [] # tuple of (idx, ParseRecord)
-        self.emase = False
         self.track_ranges = False
+
+        # tuple of (idx, ParseRecord)
+        self.data = []
 
     def __str__(self):
         return "Input: {}\nProcess ID: {}\nData: {}".format(self.input_file, self.process_id, self.data)
 
 
 class ConvertResults(object):
-    slots = ['main_targets', 'valid_alignments', 'all_alignments', 'ec', 'ec_idx', 'haplotypes', 'target_idx_to_main_target', 'init', 'tid_ranges', 'CRS', 'CRS_idx']
+    slots = ['valid_alignments', 'all_alignments', 'ec', 'init', 'tid_ranges', 'CRS']
 
     def __init__(self):
-        self.main_targets = None
         self.valid_alignments = None
         self.all_alignments = None
         self.ec = None
-        self.ec_idx = None
-        self.haplotypes = None
-        self.target_idx_to_main_target = None
         self.init = False
         self.tid_ranges = None
         self.CRS = None
-        self.CRS_idx = None
 
 
 class RangeParams(object):
-    """
-    # each core needs
-    # - name of alignment file
-    # - header size
-    # - target file
-    # - list of files to create and work on
-    #   - idx, vo_start, vo_end
-
-    """
     slots = ['input_file', 'target_file', 'temp_dir', 'process_id']
 
     def __init__(self):
@@ -193,37 +179,9 @@ def process_convert_bam(cp):
     """
     LOG.debug('Process ID: {}, Input File: {}'.format(cp.process_id, cp.input_file))
 
-    if cp.target_file:
-        LOG.debug('Process ID: {}, Target File: {}'.format(cp.process_id, cp.target_file))
-
-    if cp.emase:
-        LOG.debug('Process ID: {}, Emase format requested'.format(cp.process_id))
-
     validate_bam(cp.input_file)
 
     main_targets = OrderedDict()
-
-    if cp.target_file:
-        main_targets = utils.parse_targets(cp.target_file)
-        if len(main_targets) == 0:
-            LOG.error("Unable to parse target file")
-            sys.exit(-1)
-    else:
-        tmp = {}
-        alignment_file = pysam.AlignmentFile(cp.input_file, "rb")
-        for target in alignment_file.references:
-            idx_underscore = target.rfind('_')
-            if idx_underscore > 0:
-                main_target = target[:idx_underscore]
-            else:
-                main_target = target
-            if main_target not in tmp:
-                tmp[main_target] = main_target
-        main_targets_tmp = sorted(tmp.keys())
-        for t in main_targets_tmp:
-            main_targets[t] = len(main_targets)
-        alignment_file.close()
-
 
     # reference_id: the reference sequence number as defined in the header
     # reference_name: name (None if no AlignmentFile is associated)
@@ -233,28 +191,14 @@ def process_convert_bam(cp):
     #      the VALUE is the number of times this equivalence class has appeared
     ec = defaultdict(lambda: defaultdict(int))
 
-    # ec_idx = lookup to ec
-    #          the KEY is a comma separated string of reference_ids
-    #          the VALUE is a number specifying the insertion order of the KEY value in ec
-    ec_idx = {}
-
-    # all the haplotypes
-    haplotypes = set()
-
-    # a lookup of reference_ids to main_targets (Ensembl IDs)
-    reference_id_to_main_target = {}
-
     # unique reads
-    # unique_reads = {}
+    unique_reads = {}
 
     # times encountering new read id
     read_id_switch_counter = 0
-
     same_read_target_counter = 0
 
     ranges = {}
-
-    #pid = os.getpid()
 
     all_alignments = 0
     valid_alignments = 0
@@ -305,71 +249,42 @@ def process_convert_bam(cp):
 
             reference_sequence_name = alignment.reference_name
             reference_id = str(alignment.reference_id)
-            idx_underscore = reference_sequence_name.rfind('_')
 
-            if idx_underscore > 0:
-                main_target = reference_sequence_name[:idx_underscore]
-
-                if cp.track_ranges:
-                    min_max = ranges.get(reference_id, (100000000000, -1))
-                    n = min(min_max[0], alignment.reference_start)
-                    x = max(min_max[1], alignment.reference_start)
-                    ranges[reference_id] = (n,x)
-
-                if cp.target_file:
-                    if main_target not in main_targets:
-                        LOG.error("Unexpected target found in BAM file: {}".format(main_target))
-                        sys.exit(-1)
-
-                reference_id_to_main_target[reference_id] = main_target
-
-                try:
-                    haplotype = reference_sequence_name[idx_underscore+1:]
-                    haplotypes.add(haplotype)
-                except:
-                    LOG.error('Unable to parse Haplotype from {}'.format(reference_sequence_name))
-                    return
-            else:
-                main_target = reference_sequence_name
-                if cp.track_ranges:
-                    min_max = ranges.get(reference_id, (100000000000, -1))
-                    n = min(min_max[0], alignment.reference_start)
-                    x = max(min_max[1], alignment.reference_start)
-                    ranges[reference_id] = (n, x)
-
-                if cp.target_file:
-                    if main_target not in main_targets:
-                        LOG.error("Unexpected target found in BAM file: {}".format(main_target))
-                        sys.exit(-1)
-
-                reference_id_to_main_target[reference_id] = main_target
-
-                haplotype = generic_haplotype
-                haplotypes.add(haplotype)
+            if cp.track_ranges:
+                min_max = ranges.get(reference_id, (100000000000, -1))
+                n = min(min_max[0], alignment.reference_start)
+                x = max(min_max[1], alignment.reference_start)
+                ranges[reference_id] = (n,x)
 
             # query_name = Column 1 from file, the Query template NAME
 
             if query_name is None:
                 query_name = alignment.query_name
 
+                i = query_name.find(' ')
+                if i > 0:
+                    query_name = query_name[:i]
+
+            try:
+                unique_reads[query_name] += 1
+            except KeyError:
+                unique_reads[query_name] = 1
+
             # query_name = Column 1 from file, the Query template NAME
             bam_tags = query_name.split('|||')
-            orig_query_name = bam_tags[0]
+            #orig_query_name = bam_tags[0]
             bam_tag_CR = bam_tags[2]
-            bam_tag_CY = bam_tags[4]
-            bam_tag_UR = bam_tags[6]
-            bam_tag_UY = bam_tags[8]
-            bam_tag_BC = bam_tags[10]
-            bam_tag_QT = bam_tags[12]
+            #bam_tag_CY = bam_tags[4]
+            #bam_tag_UR = bam_tags[6]
+            #bam_tag_UY = bam_tags[8]
+            #bam_tag_BC = bam_tags[10]
+            #bam_tag_QT = bam_tags[12]
 
             # set tags and dump new alignment
-
-            #try:
-            #    unique_reads[query_name] += 1
-            #except KeyError:
-            #    unique_reads[query_name] = 1
-
             alignment_query_name = alignment.query_name
+            i = alignment_query_name.find(' ')
+            if i > 0:
+                alignment_query_name = alignment_query_name[:i]
 
             if query_name != alignment_query_name:
                 ec_key = ','.join(sorted(reference_ids))
@@ -393,25 +308,16 @@ def process_convert_bam(cp):
             "DONE Process ID: {}, File: {}, {:,} valid alignments processed out of {:,}, with {:,} equivalence classes".format(
                 cp.process_id, cp.input_file, valid_alignments, all_alignments, len(ec)))
 
-    haplotypes = sorted(list(haplotypes))
-
-    #LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
+    LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
     LOG.debug("Process ID: {}, # Reads/Target Duplications: {:,}".format(cp.process_id, same_read_target_counter))
-    LOG.debug("Process ID: {}, # Main Targets: {:,}".format(cp.process_id, len(main_targets)))
-    LOG.debug("Process ID: {}, # Haplotypes: {:,}".format(cp.process_id, len(haplotypes)))
     LOG.debug("Process ID: {}, # Equivalence Classes: {:,}".format(cp.process_id, len(ec)))
 
     ret = ConvertResults()
-    ret.main_targets = main_targets
     ret.valid_alignments = valid_alignments
     ret.all_alignments = all_alignments
     ret.ec = ddict2dict(ec)
-    ret.ec_idx = None #OrderedDict()
-    ret.haplotypes = haplotypes
-    ret.target_idx_to_main_target = reference_id_to_main_target
-    #ret.unique_reads = unique_reads
+    ret.unique_reads = unique_reads
     ret.tid_ranges = ranges
-    ret.CRS = None #OrderedDict()
 
     return ret
 
@@ -449,10 +355,21 @@ def wrapper_range(args):
 # +
 # quality
 
+def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_count=-1, number_processes=-1, temp_dir=None, range_filename=None):
+    """
+    """
+    LOG.debug('Parameters')
+    LOG.debug('-------------------------------------------')
+    LOG.debug('BAM file: {}'.format(bam_filename))
+    LOG.debug('EC file: {}'.format(ec_filename))
+    LOG.debug('EMASE file: {}'.format(emase_filename))
+    LOG.debug('chunks: {}'.format(num_chunks))
+    LOG.debug('minimum count: {}'.format(minimum_count))
+    LOG.debug('processes: {}'.format(number_processes))
+    LOG.debug('Temp directory: {}'.format(temp_dir))
+    LOG.debug('Range file: {}'.format(range_filename))
+    LOG.debug('-------------------------------------------')
 
-def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, emase=False, temp_dir=None, range_filename=None, minimum_count=-1, number_processes=-1):
-    """
-    """
     start_time = time.time()
 
     if os.path.isfile(bam_filename):
@@ -471,14 +388,69 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         num_processes = number_processes
 
     if not temp_dir:
-        temp_dir = os.path.dirname(output_filename)
+        if emase_filename:
+            temp_dir = os.path.dirname(emase_filename)
+        if ec_filename:
+            temp_dir = os.path.dirname(ec_filename)
 
+    LOG.info("Parsing file information...")
+    temp_time = time.time()
 
-    # each core needs
-    # - name of alignment file
-    # - target file
-    # - list of files to create and work on
-    #   - idx, mp_param
+    alignment_file = pysam.AlignmentFile(bam_files[0])
+    main_targets = OrderedDict()
+    all_targets_list = []
+    target_idx_to_main_target = {}
+    haplotypes = set()
+
+    #
+    for idx, reference_sequence_name in enumerate(alignment_file.references):
+        tid = str(alignment_file.get_tid(reference_sequence_name))
+        idx_underscore = reference_sequence_name.rfind('_')
+
+        if idx_underscore > 0:
+            target = reference_sequence_name[:idx_underscore]
+            haplotype = reference_sequence_name[idx_underscore + 1:]
+        else:
+            target = reference_sequence_name
+            haplotype = ''
+
+        target_idx_to_main_target[tid] = target
+        haplotypes.add(haplotype)
+
+        if target not in main_targets:
+            main_targets[target] = len(main_targets)
+
+        all_targets_list.append(reference_sequence_name)
+
+    haplotypes = sorted(list(haplotypes))
+    haplotypes_idx = {h:idx for idx, h in enumerate(haplotypes)}
+
+    main_target_lengths = np.zeros((len(main_targets), len(haplotypes)), dtype=np.int32)
+
+    alignment_file.close()
+    alignment_file = pysam.AlignmentFile(bam_files[0])
+
+    #
+    # Due to pysam limitation (at least on 0.10.0) we have to LOOP THROUGH TWICE
+    # because referencing both alignment_file.lengths and
+    # because referencing both alignment_file.references and
+    #
+    for idx, length in enumerate(alignment_file.lengths):
+        reference_sequence_name = all_targets_list[idx]
+
+        idx_underscore = reference_sequence_name.rfind('_')
+
+        if idx_underscore > 0:
+            target = reference_sequence_name[:idx_underscore]
+            haplotype = reference_sequence_name[idx_underscore + 1:]
+        else:
+            target = reference_sequence_name
+            haplotype = ''
+
+        main_target_lengths[main_targets[target], haplotypes_idx[haplotype]] = length
+
+    LOG.info("File parsed in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                        utils.format_time(start_time, time.time())))
 
     all_params = []
 
@@ -486,7 +458,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     for bam_file in bam_files:
         params = ConvertParams()
         params.input_file = bam_file
-        params.target_file = target_filename
         params.temp_dir = temp_dir
         params.track_ranges = (range_filename != None)
         params.process_id = pid
@@ -498,11 +469,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     final.valid_alignments = 0
     final.all_alignments = 0
     final.ec = OrderedDict()
-    final.ec_idx = OrderedDict()
-    final.CRS = {}
-    final.haplotypes = set()
-    final.main_targets = OrderedDict()
-    final.target_idx_to_main_target = {}
     final.unique_reads = {}
     final.tid_ranges = {}
 
@@ -514,37 +480,30 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
     temp_time = time.time()
     args = zip(all_params)
     pool = multiprocessing.Pool(num_processes)
-    results = pool.imap(wrapper_convert, args)
 
-    LOG.info("All processes done in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                               utils.format_time(start_time, time.time())))
-
-    LOG.info("Combining {} results ...".format(len(results)))
-    temp_time = time.time()
-
-    alignment_file = pysam.AlignmentFile(bam_files[0])
+    ec_idx = {}
+    CRS_idx = {}
+    CRS = OrderedDict()
 
     counter_test = 0
 
     # parse results
-    for idx, result in enumerate(results):
-
-        LOG.info("Combining result #{}".format(idx))
+    for idx, result in enumerate(pool.imap(wrapper_convert, args)):
+        LOG.info("Process {} done out of {}, combining result".format(idx + 1, len(all_params)))
+        temp_time = time.time()
 
         if not final.init:
             final = result
             final.init = True
-            final.CRS = OrderedDict()
-            final.ec_idx = OrderedDict()
-            final.CRS_idx = OrderedDict()
+            CRS = OrderedDict()
 
-            for eckey, crdict in result.ec.iteritems():
-                final.ec_idx[eckey] = len(final.ec_idx)
+            for eckey, crdict in final.ec.iteritems():
+                ec_idx[eckey] = len(ec_idx)
                 for crkey, count in crdict.iteritems():
-                    final.CRS[crkey] = 1
+                    CRS[crkey] = 1
 
-                    if crkey not in final.CRS_idx:
-                        final.CRS_idx[crkey] = len(final.CRS_idx)
+                    if crkey not in CRS_idx:
+                        CRS_idx[crkey] = len(CRS_idx)
 
                     if crkey in cr_totals:
                         cr_totals[crkey] += count
@@ -563,10 +522,10 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
             for eckey, crdict in result.ec.iteritems():
                 for crkey, count in crdict.iteritems():
-                    final.CRS[crkey] = 1
+                    CRS[crkey] = 1
 
-                    if crkey not in final.CRS_idx:
-                        final.CRS_idx[crkey] = len(final.CRS_idx)
+                    if crkey not in CRS_idx:
+                        CRS_idx[crkey] = len(CRS_idx)
 
                     if crkey in cr_totals:
                         cr_totals[crkey] += count
@@ -585,35 +544,12 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                             final.ec[eckey][crkey] = count
                             counter_test += 1
                     else:
-                        final.ec_idx[eckey] = len(final.ec_idx)
+                        ec_idx[eckey] = len(ec_idx)
                         final.ec[eckey] = {crkey: count}
                         counter_test += 1
 
             LOG.debug("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
-            LOG.debug("CHUNK {}: # Total CRs: {:,}".format(idx, len(final.CRS)))
-
-            # combine haplotypes
-            LOG.debug("CHUNK {}: # Result Haplotypes: {:,}".format(idx, len(result.haplotypes)))
-            s1 = set(final.haplotypes)
-            s2 = set(result.haplotypes)
-            final.haplotypes = sorted(list(s1.union(s2)))
-            LOG.debug("CHUNK {}: # Total Haplotypes: {:,}".format(idx, len(final.haplotypes)))
-
-            # combine target_idx_to_main_target
-            LOG.debug("CHUNK {}: # Result Main Targets: {:,}".format(idx, len(result.main_targets)))
-            for k, v in result.target_idx_to_main_target.iteritems():
-                if k not in final.target_idx_to_main_target:
-                    final.target_idx_to_main_target[k] = v
-            LOG.debug("CHUNK {}: # Total Main Targets: {:,}".format(idx, len(final.main_targets)))
-
-            # unique reads
-            #LOG.debug("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
-            #for k, v in result.unique_reads.iteritems():
-            #    if k in final.unique_reads:
-            #        final.unique_reads[k] += v
-            #    else:
-            #        final.unique_reads[k] = v
-            #LOG.debug("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(final.unique_reads)))
+            LOG.debug("CHUNK {}: # Total CRs: {:,}".format(idx, len(CRS)))
 
             final.valid_alignments += result.valid_alignments
             final.all_alignments += result.all_alignments
@@ -636,33 +572,32 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
     #LOG.info("# Total Alignments: {:,}".format(final.all_alignments))
     LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
-    LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
-    LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
+    LOG.info("# Main Targets: {:,}".format(len(main_targets)))
+    LOG.info("# Haplotypes: {:,}".format(len(haplotypes)))
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
-    LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(final.ec_idx)))
-    LOG.debug("# Equivalence Class Max Index: {:,}".format(max(final.ec_idx.values())))
+    LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(ec_idx)))
+    LOG.debug("# Equivalence Class Max Index: {:,}".format(max(ec_idx.values())))
     #LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
 
     # filter everything
     LOG.debug("Minimum Count: {:,}".format(minimum_count))
 
     if minimum_count > 0:
-        LOG.info("FILTERING CRS: {:,}".format(len(final.CRS)))
+        LOG.info("FILTERING CRS: {:,}".format(len(CRS)))
         # find the new CRS
-        final.CRS = OrderedDict()
-        final.CRS_idx = OrderedDict()
+        CRS = OrderedDict()
+        CRS_idx = {}
 
         for CR, CR_total in cr_totals.iteritems():
             if CR_total >= minimum_count:
-                final.CRS[CR] = CR_total
+                CRS[CR] = CR_total
 
-                if CR not in final.CRS_idx:
-                    final.CRS_idx[CR] = len(final.CRS_idx)
-
+                if CR not in CRS_idx:
+                    CRS_idx[CR] = len(CRS_idx)
 
         # remove invalid CRS from ECs
         new_ecs = OrderedDict()
-        new_ec_idx = OrderedDict()
+        new_ec_idx = {}
         new_ec_totals = {}
         # loop through ecs
         for eckey, crs in final.ec.iteritems():
@@ -673,7 +608,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             # loop through valid CRS and and if valid
             for crkey, crcount in crs.iteritems():
 
-                if crkey in final.CRS:
+                if crkey in CRS:
                     ec[crkey] = crs[crkey]
                     total += crcount
 
@@ -685,35 +620,34 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
 
         ec_totals = new_ec_totals
         final.ec = new_ecs
-        final.ec_idx = new_ec_idx
+        ec_idx = new_ec_idx
 
-    #LOG.info("# Total Alignments: {:,}".format(final.all_alignments))
     LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
-    LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
-    LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
+    LOG.info("# Main Targets: {:,}".format(len(main_targets)))
+    LOG.info("# Haplotypes: {:,}".format(len(haplotypes)))
     LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
-    LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(final.ec_idx)))
-    LOG.debug("# Equivalence Class Max Index: {:,}".format(max(final.ec_idx.values())))
-    #LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
+    LOG.debug("# Equivalence Classes (ec_idx): {:,}".format(len(ec_idx)))
+    LOG.debug("# Equivalence Class Max Index: {:,}".format(max(ec_idx.values())))
 
     if range_filename:
         # tid_stats
         with open(range_filename, "w") as fw:
             fw.write("#\t")
-            fw.write("\t".join(final.haplotypes))
+            fw.write("\t".join(haplotypes))
             fw.write("\n")
 
-            for main_target in final.main_targets:
+            for main_target in main_targets:
                 fw.write(main_target)
                 fw.write("\t")
 
                 vals = []
 
-                for haplotype in final.haplotypes:
-                    #
-                    # TODO: range file has haplotypes or not???
-                    #
-                    read_transcript = '{}_{}'.format(main_target, haplotype)
+                for haplotype in haplotypes:
+                    if len(haplotype) == 0:
+                        read_transcript = main_target
+                    else:
+                        read_transcript = '{}_{}'.format(main_target, haplotype)
+
                     read_transcript_idx = str(alignment_file.gettid(read_transcript))
 
                     try:
@@ -728,12 +662,7 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 fw.write("\t".join(vals))
                 fw.write("\n")
 
-    try:
-        os.remove(output_filename)
-    except OSError:
-        pass
-
-    LOG.info("CRS: {:,}".format(len(final.CRS)))
+    LOG.info("CRS: {:,}".format(len(CRS)))
     ec_arr_max = -1
     target_arr_max = -1
 
@@ -741,8 +670,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         temp_time = time.time()
         LOG.info('Constructing APM structure...')
 
-        new_shape = (len(final.main_targets),
-                     len(final.haplotypes),
+        new_shape = (len(main_targets),
+                     len(haplotypes),
                      len(final.ec))
 
         LOG.debug('Shape={}'.format(new_shape))
@@ -750,8 +679,8 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
         # final.ec.values -> the number of times this equivalence class has appeared
 
         ec_ids = [x for x in xrange(0, len(final.ec))]
-        ec_arr = [[] for _ in xrange(0, len(final.haplotypes))]
-        target_arr = [[] for _ in xrange(0, len(final.haplotypes))]
+        ec_arr = [[] for _ in xrange(0, len(haplotypes))]
+        target_arr = [[] for _ in xrange(0, len(haplotypes))]
 
         # k = comma seperated string of tids
         # v = the count
@@ -761,87 +690,97 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             # get the main targets by name
             temp_main_targets = set()
             for idx in arr_target_idx:
-                temp_main_targets.add(final.target_idx_to_main_target[idx])
+                temp_main_targets.add(target_idx_to_main_target[idx])
 
             # loop through the targets and haplotypes to get the bits
             for main_target in temp_main_targets:
                 # main_target is not an index, but a value like 'ENMUST..001'
 
-                for i, hap in enumerate(final.haplotypes):
-
-                    read_transcript = '{}_{}'.format(main_target, hap) # now 'ENMUST..001_A'
-
-                    if len(final.haplotypes) == 1 and final.haplotypes[0] == '':
+                for i, hap in enumerate(haplotypes):
+                    if len(hap) == 0:
+                        # leaving as 'ENMUST..001'
                         read_transcript = main_target
+                    else:
+                        # making 'ENMUST..001_A'
+                        read_transcript = '{}_{}'.format(main_target, hap)
 
                     # get the numerical tid corresponding to read_transcript
                     read_transcript_idx = str(alignment_file.gettid(read_transcript))
 
                     if read_transcript_idx in arr_target_idx:
-                        #LOG.debug("{}\t{}\t{}".format(final.ec_idx[k], final.main_targets[main_target], i))
+                        #LOG.debug("{}\t{}\t{}".format(ec_idx[k], main_targets[main_target], i))
 
                         # main_targets[main_target] = idx of main target
                         # i = the haplotype
                         # ec_idx[k] = index of ec
 
-                        #apm.set_value(final.main_targets[main_target], i, final.ec_idx[k], 1)
+                        #apm.set_value(main_targets[main_target], i, ec_idx[k], 1)
 
-                        ec_arr[i].append(final.ec_idx[k])
-                        target_arr[i].append(final.main_targets[main_target])
-                        ec_arr_max = max(ec_arr_max, final.ec_idx[k])
-                        target_arr_max = max(target_arr_max, final.main_targets[main_target])
+                        ec_arr[i].append(ec_idx[k])
+                        target_arr[i].append(main_targets[main_target])
+                        ec_arr_max = max(ec_arr_max, ec_idx[k])
+                        target_arr_max = max(target_arr_max, main_targets[main_target])
 
         apm = APM(shape=new_shape,
-                  haplotype_names=final.haplotypes,
-                  locus_names=final.main_targets.keys(),
+                  haplotype_names=haplotypes,
+                  locus_names=main_targets.keys(),
                   read_names=ec_ids,
-                  sample_names=final.CRS.keys())
+                  sample_names=CRS.keys())
 
-        for h in xrange(0, len(final.haplotypes)):
+        for h in xrange(0, len(haplotypes)):
             d = np.ones(len(ec_arr[h]), dtype=np.int32)
-            apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(final.main_targets)))
+            apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(main_targets)))
 
         # now ER by UR
         # OLD: apm.count = final.ec.values()
 
         LOG.debug('Constructing CRS...')
-        LOG.debug('CRS dimensions: {:,} x {:,}'.format(len(final.ec), len(final.CRS)))
+        LOG.debug('CRS dimensions: {:,} x {:,}'.format(len(final.ec), len(CRS)))
         LOG.debug('Constructing CRS...')
 
-        #print final.CRS_idx
-        #print len(final.CRS)
-        #print len(final.CRS_idx)
-
-        npa = lil_matrix((len(final.ec), len(final.CRS)), dtype=np.int32)
+        npa = lil_matrix((len(final.ec), len(CRS)), dtype=np.int32)
         i = 0
         for eckey, crs in final.ec.iteritems():
             # k = commas seperated list (eckey)
             # v = dict of CRS and counts
             for crskey, crscount in crs.iteritems():
-                npa[i, final.CRS_idx[crskey]] = crs[crskey]
+                npa[i, CRS_idx[crskey]] = crs[crskey]
             i += 1
 
         LOG.info("NPA SUM: {:,}".format(npa.sum()))
 
-        apm.count = npa
+        apm.count = npa.tocsr()
 
         LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                             utils.format_time(start_time, time.time())))
 
-        if emase:
-            temp_time = time.time()
+        if emase_filename:
             LOG.info("Flushing to disk...")
+
+            try:
+                os.remove(emase_filename)
+            except OSError:
+                pass
+
+            temp_time = time.time()
             apm.finalize()
-            apm.save(output_filename, title='bam2ec')
-            LOG.info("{} created in {}, total time: {}".format(output_filename,
+            apm.save(emase_filename, title='bam2ec')
+            LOG.info("{} created in {}, total time: {}".format(emase_filename,
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
-        else:
+        if ec_filename:
             LOG.debug("Creating summary matrix...")
+
+            try:
+                os.remove(ec_filename)
+            except OSError:
+                pass
+
             temp_time = time.time()
-            num_haps = len(final.haplotypes)
-            summat = apm.data[0].copy()
+            num_haps = len(haplotypes)
+            summat = 2 ** (num_haps - 1) * apm.data[0]
+
             for h in xrange(1, num_haps):
                 summat = summat + ((2 ** (num_haps - 1 - h)) * apm.data[h])
 
@@ -855,33 +794,10 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            with gzip.open(output_filename, 'wb') as f:
-            #with open(output_filename, 'wb') as f:
+            with gzip.open(ec_filename, 'wb') as f:
                 # FORMAT
                 f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")
-
-                #
-                # SECTION: TARGETS
-                #     [# of TARGETS = T]
-                #     [length of TARGET 1 text][TARGET 1 text]
-                #     ...
-                #     [length of TARGET T text][TARGET T text]
-                #
-                # Example:
-                #     80000
-                #     18 ENSMUST00000156068
-                #     18 ENSMUST00000209341
-                #     ...
-                #     18 ENSMUST00000778019
-                #
-
-                LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
-                f.write(pack('<i', len(final.main_targets)))
-                for main_target, idx in final.main_targets.iteritems():
-                    # LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-                    f.write(pack('<i', len(main_target)))
-                    f.write(pack('<{}s'.format(len(main_target)), main_target))
 
                 #
                 # SECTION: HAPLOTYPES
@@ -902,12 +818,42 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 #     1 H
                 #
 
-                LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
-                f.write(pack('<i', len(final.haplotypes)))
-                for idx, hap in enumerate(final.haplotypes):
+                LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(haplotypes)))
+                f.write(pack('<i', len(haplotypes)))
+                for idx, hap in enumerate(haplotypes):
                     # LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
                     f.write(pack('<i', len(hap)))
                     f.write(pack('<{}s'.format(len(hap)), hap))
+
+                #
+                # SECTION: TARGETS
+                #     [# of TARGETS = T]
+                #     [length TARGET 1 text][TARGET 1 text][HAP 1 length] ... [HAP H length]
+                #     ...
+                #     [length TARGET T text][TARGET T text][HAP 1 length] ... [HAP H length]
+                #
+                # Example:
+                #     80000
+                #     18 ENSMUST00000156068 234
+                #     18 ENSMUST00000209341 1054
+                #     ...
+                #     18 ENSMUST00000778019 1900
+                #
+
+                LOG.info("NUMBER OF TARGETS: {:,}".format(len(main_targets)))
+                f.write(pack('<i', len(main_targets)))
+                for main_target, idx in main_targets.iteritems():
+                    f.write(pack('<i', len(main_target)))
+                    f.write(pack('<{}s'.format(len(main_target)), main_target))
+
+                    #lengths = []
+
+                    for idx_hap, hap in enumerate(haplotypes):
+                        length = main_target_lengths[idx, idx_hap]
+                        f.write(pack('<i', length))
+                        #lengths.append(str(length))
+
+                    #LOG.debug("#{:,} --> {:,}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
 
                 #
                 # SECTION: CRS
@@ -923,9 +869,9 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 #     16 TAGTGGTAGAGGTAGA
                 #
 
-                LOG.info("FILTERED CRS: {:,}".format(len(final.CRS)))
-                f.write(pack('<i', len(final.CRS)))
-                for CR, idx in final.CRS.iteritems():
+                LOG.info("FILTERED CRS: {:,}".format(len(CRS)))
+                f.write(pack('<i', len(CRS)))
+                for CR, idx in CRS.iteritems():
                     #LOG.debug("{:,}\t{}\t# {:,}".format(len(CR), CR, idx))
                     f.write(pack('<i', len(CR)))
                     f.write(pack('<{}s'.format(len(CR)), CR))
@@ -967,29 +913,27 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 #     11
                 #
 
-                LOG.info("NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
+                LOG.info("N MATRIX: NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
                 f.write(pack('<i', len(final.ec)))
 
-                npa_csr = npa.tocsr()
-
                 # NON ZEROS
-                LOG.info("NUMBER OF NON ZERO: {:,}".format(npa_csr.nnz))
-                f.write(pack('<i', npa_csr.nnz))
+                LOG.info("N MATRIX: NUMBER OF NON ZERO: {:,}".format(apm.count.nnz))
+                f.write(pack('<i', apm.count.nnz))
 
                 # ROW OFFSETS
-                LOG.info("LENGTH INDPTR: {:,}".format(len(npa_csr.indptr)))
-                f.write(pack('<{}i'.format(len(npa_csr.indptr)), *npa_csr.indptr))
-                LOG.error(npa_csr.indptr)
+                LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
+                f.write(pack('<{}i'.format(len(apm.count.indptr)), *apm.count.indptr))
+                LOG.error(apm.count.indptr)
 
                 # COLUMNS
-                LOG.info("LENGTH INDICES: {:,}".format(len(npa_csr.indices)))
-                f.write(pack('<{}i'.format(len(npa_csr.indices)), *npa_csr.indices))
-                LOG.error(npa_csr.indices)
+                LOG.info("N MATRIX: LENGTH INDICES: {:,}".format(len(apm.count.indices)))
+                f.write(pack('<{}i'.format(len(apm.count.indices)), *apm.count.indices))
+                LOG.error(apm.count.indices)
 
                 # DATA
-                LOG.info("LENGTH DATA: {:,}".format(len(npa_csr.data)))
-                f.write(pack('<{}i'.format(len(npa_csr.data)), *npa_csr.data))
-                LOG.error(npa_csr.data)
+                LOG.info("N MATRIX: LENGTH DATA: {:,}".format(len(apm.count.data)))
+                f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
+                LOG.error(apm.count.data)
 
                 #
                 # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
@@ -1015,21 +959,34 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 #     100 200 8
                 #
 
-                LOG.debug("Determining mappings...")
+                LOG.info("Determining mappings...")
 
                 num_mappings = summat.nnz
-                summat = coo_matrix(summat)
+                summat = summat.tocsr()
 
-                LOG.info("NUMBER OF EQUIVALENCE CLASS MAPPINGS: {:,}".format(num_mappings))
+                LOG.info("A MATRIX: INDPTR LENGTH {:,}".format(len(summat.indptr)))
+                f.write(pack('<i', len(summat.indptr)))
+
+                # NON ZEROS
+                LOG.info("A MATRIX: NUMBER OF NON ZERO: {:,}".format(num_mappings))
                 f.write(pack('<i', num_mappings))
 
-                for i, d in enumerate(summat.data):
-                    LOG.debug("{}\t{}\t{}\t".format(summat.row[i], summat.col[i], d))
-                    f.write(pack('<i', summat.row[i]))
-                    f.write(pack('<i', summat.col[i]))
-                    f.write(pack('<i', d))
+                # ROW OFFSETS
+                LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
+                f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
+                # LOG.error(summat.indptr)
 
-            LOG.info("{} created in {}, total time: {}".format(output_filename,
+                # COLUMNS
+                LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
+                f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
+                # LOG.error(summat.indices)
+
+                # DATA
+                LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
+                f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
+                # LOG.error(summat.data)
+
+            LOG.info("{} created in {}, total time: {}".format(ec_filename,
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 

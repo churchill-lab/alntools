@@ -437,26 +437,32 @@ def ec2emase(file_in, file_out):
                                                    utils.format_time(temp_time, time.time()),
                                                    utils.format_time(start_time, time.time())))
 
-
-
-
 def dumpec(ec_filename, detail=False):
     parse_ec(ec_filename, detail)
 
-def bam2ec(bam_filename, ec_filename, num_chunks=0, target_filename=None, temp_dir=None, range_filename=None):
-    bam_utils.convert(bam_filename, ec_filename, num_chunks=num_chunks, target_filename=target_filename, emase=False, temp_dir=temp_dir, range_filename=range_filename)
+
+def bam2ec(bam_filename, ec_filename, chunks=0, directory=None, number_processes=-1, range_filename=None):
+    bam_utils.convert(bam_filename, ec_filename, None, num_chunks=chunks, number_processes=number_processes, temp_dir=directory, range_filename=range_filename)
 
 
-def bam2ec_multisample(bam_filename, ec_filename, num_chunks=0, target_filename=None, temp_dir=None, range_filename=None, minimum_count=-1):
-    bam_utils_multisample.convert(bam_filename, ec_filename, num_chunks=num_chunks, target_filename=target_filename, emase=False, temp_dir=temp_dir, range_filename=range_filename, minimum_count=minimum_count)
+def bam2emase(bam_filename, emase_filename, chunks=0, directory=None, number_processes=-1, range_filename=None):
+    bam_utils.convert(bam_filename, None, emase_filename, num_chunks=chunks, number_processes=number_processes, temp_dir=directory, range_filename=range_filename)
 
 
-def bam2emase(bam_filename, emase_filename, num_chunks=0, target_filename=None, temp_dir=None):
-    bam_utils.convert(bam_filename, emase_filename, num_chunks=num_chunks, target_filename=target_filename, emase=True, temp_dir=temp_dir)
+def bam2both(bam_filename, ec_filename, emase_filename, chunks=0, directory=None, number_processes=-1, range_filename=None):
+    bam_utils.convert(bam_filename, ec_filename, emase_filename, num_chunks=chunks, number_processes=number_processes, temp_dir=directory, range_filename=range_filename)
 
 
-def bam2emase_multisample(bam_filename, emase_filename, num_chunks=0, target_filename=None, temp_dir=None, minimum_count=-1, number_processes=-1):
-    bam_utils_multisample.convert(bam_filename, emase_filename, num_chunks=num_chunks, target_filename=target_filename, emase=True, temp_dir=temp_dir, minimum_count=minimum_count, number_processes=number_processes)
+def bam2ec_multisample(bam_filename, ec_filename, chunks=0, minimum_count=-1, directory=None, number_processes=-1, range_filename=None):
+    bam_utils_multisample.convert(bam_filename, ec_filename, None, num_chunks=chunks, minimum_count=minimum_count, number_processes=number_processes, temp_dir=directory, range_filename=range_filename)
+
+
+def bam2both_multisample(bam_filename, emase_filename, chunks=0, minimum_count=-1, directory=None, number_processes=-1, range_filename=None):
+    bam_utils_multisample.convert(bam_filename, None, emase_filename, num_chunks=chunks, minimum_count=minimum_count, number_processes=number_processes, temp_dir=directory, range_filename=range_filename)
+
+
+def bam2both_multisample(bam_filename, ec_filename, emase_filename, chunks=0, minimum_count=-1, directory=None, number_processes=-1, range_filename=None):
+    bam_utils_multisample.convert(bam_filename, ec_filename, emase_filename, num_chunks=chunks, minimum_count=minimum_count, number_processes=number_processes, temp_dir=directory, range_filename=range_filename)
 
 
 def split_bam(bam_filename, num_chunks, directory=None):
