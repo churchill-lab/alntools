@@ -398,6 +398,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
     alignment_file = pysam.AlignmentFile(bam_files[0])
     main_targets = OrderedDict()
+    main_targets_list = []
     all_targets_list = []
     target_idx_to_main_target = {}
     haplotypes = set()
@@ -419,6 +420,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
         if target not in main_targets:
             main_targets[target] = len(main_targets)
+            main_targets_list.append(target)
 
         all_targets_list.append(reference_sequence_name)
 
@@ -741,8 +743,8 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
         npa = lil_matrix((len(final.ec), len(CRS)), dtype=np.int32)
         i = 0
         for eckey, crs in final.ec.iteritems():
-            # k = commas seperated list (eckey)
-            # v = dict of CRS and counts
+            # eckey = commas seperated list
+            # crs = dict of CRS and counts
             for crskey, crscount in crs.iteritems():
                 npa[i, CRS_idx[crskey]] = crs[crskey]
             i += 1
@@ -779,14 +781,13 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
             temp_time = time.time()
             num_haps = len(haplotypes)
-            summat = 2 ** (num_haps - 1) * apm.data[0]
-
+            summat = apm.data[0]
             for h in xrange(1, num_haps):
-                summat = summat + ((2 ** (num_haps - 1 - h)) * apm.data[h])
+                summat = summat + ((2 ** h) * apm.data[h])
 
-            LOG.debug('summat.sum = {}'.format(summat.sum()))
-            LOG.debug('summat.max = {}'.format(summat.max()))
-            LOG.debug('summat = {}'.format(summat))
+            LOG.info('summat.sum = {}'.format(summat.sum()))
+            LOG.info('summat.max = {}'.format(summat.max()))
+            LOG.info('summat = {}'.format(summat))
 
             LOG.info("Matrix created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                    utils.format_time(start_time, time.time())))
@@ -914,7 +915,9 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                 #
 
                 LOG.info("N MATRIX: NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
-                f.write(pack('<i', len(final.ec)))
+                LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
+                f.write(pack('<i', len(apm.count.indptr)))
+
 
                 # NON ZEROS
                 LOG.info("N MATRIX: NUMBER OF NON ZERO: {:,}".format(apm.count.nnz))
@@ -974,17 +977,17 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                 # ROW OFFSETS
                 LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
                 f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
-                # LOG.error(summat.indptr)
+                LOG.error(summat.indptr)
 
                 # COLUMNS
                 LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
                 f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
-                # LOG.error(summat.indices)
+                LOG.error(summat.indices)
 
                 # DATA
                 LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
                 f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
-                # LOG.error(summat.data)
+                LOG.error(summat.data)
 
             LOG.info("{} created in {}, total time: {}".format(ec_filename,
                                                                utils.format_time(temp_time, time.time()),
