@@ -64,7 +64,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             if h5fh.__contains__('%s' % (datanode + '/count')):
                 try:
                     self.count = h5fh.get_node(datanode, 'count').read()  # Format-1
-                except NoSuchNodeError as e:  # Format-2
+                except tables.NoSuchNodeError as e:  # Format-2
                     nmat_node = h5fh.get_node(datanode + '/count')
                     indptr = h5fh.get_node(nmat_node, 'indptr').read()
                     indices = h5fh.get_node(nmat_node, 'indices').read()
