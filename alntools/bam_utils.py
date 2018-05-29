@@ -910,35 +910,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                     print("[{}]\t{}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
 
                 #
-                # SECTION: EQUIVALENCE CLASSES
-                #     [# of EC = E]
-                #     [counts of EC 1]
-                #     ...
-                #     [counts of EC E]
-                #
-                # Example:
-                #     200
-                #     22
-                #     10001
-                #     ...
-                #     729
-                #
-
-                print('===========\nEC\n===========')
-                print("[i]\teccount")
-                temp_ec = []
-                t = 0
-                LOG.info("NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
-                f.write(pack('<i', len(final.ec)))
-                for idx, k in enumerate(final.ec.keys()):
-                    # ec[k] is the count
-                    LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
-                    f.write(pack('<i', final.ec[k]))
-                    temp_ec.append(final.ec[k])
-                    print('[{}]\t{}'.format(t, final.ec[k]))
-                    t += 1
-
-                #
                 # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
                 #     [# of ALIGNMENT MAPPINGS (AM) = A]
                 #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
@@ -1074,53 +1045,83 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                         f.write(pack('<i', main_targets[main_target]))
                         f.write(pack('<i', utils.list_to_int(bits)))
                 '''
-            '''
-            # equivalence class mappings
-            counter = 0
-            for k, v in final.ec.iteritems():
-                arr_target_idx = k.split(",")
+                '''
+                # equivalence class mappings
+                counter = 0
+                for k, v in final.ec.iteritems():
+                    arr_target_idx = k.split(",")
+    
+                    # get the main targets by name
+                    temp_main_targets = set()
+                    for idx in arr_target_idx:
+                        temp_main_targets.add(target_idx_to_main_target[idx])
+    
+                    counter += len(temp_main_targets)
+    
+                print("old_matrix, count={}".format(counter))
+    
+                for k, v in final.ec.iteritems():
+                    arr_target_idx = k.split(",")
+    
+                    # get the main targets by name
+                    temp_main_targets = set()
+                    for idx in arr_target_idx:
+                        temp_main_targets.add(target_idx_to_main_target[idx])
+    
+                    # loop through the haplotypes and targets to get the bits
+                    for main_target in temp_main_targets:
+                        # main_target is not an index, but a value like 'ENMUST..001'
+    
+                        bits = []
+    
+                        for haplotype in haplotypes:
+                            if len(haplotype) == 0:
+                                read_transcript = main_target
+                            else:
+                                read_transcript = '{}_{}'.format(main_target, haplotype)
+    
+                            read_transcript_idx = str(alignment_file.gettid(read_transcript))
+    
+                            if read_transcript_idx in arr_target_idx:
+                                bits.append(1)
+                            else:
+                                bits.append(0)
+    
+                        print("{}\t{}\t{}\t# {}\t{}\tc={}".format(ec_idx[k],
+                                                                main_targets[main_target],
+                                                                utils.list_to_int(bits),
+                                                                main_target, bits, v))
+                '''
 
-                # get the main targets by name
-                temp_main_targets = set()
-                for idx in arr_target_idx:
-                    temp_main_targets.add(target_idx_to_main_target[idx])
+                #
+                # SECTION: EQUIVALENCE CLASSES
+                #     [# of EC = E]
+                #     [counts of EC 1]
+                #     ...
+                #     [counts of EC E]
+                #
+                # Example:
+                #     200
+                #     22
+                #     10001
+                #     ...
+                #     729
+                #
 
-                counter += len(temp_main_targets)
-
-            print("old_matrix, count={}".format(counter))
-
-            for k, v in final.ec.iteritems():
-                arr_target_idx = k.split(",")
-
-                # get the main targets by name
-                temp_main_targets = set()
-                for idx in arr_target_idx:
-                    temp_main_targets.add(target_idx_to_main_target[idx])
-
-                # loop through the haplotypes and targets to get the bits
-                for main_target in temp_main_targets:
-                    # main_target is not an index, but a value like 'ENMUST..001'
-
-                    bits = []
-
-                    for haplotype in haplotypes:
-                        if len(haplotype) == 0:
-                            read_transcript = main_target
-                        else:
-                            read_transcript = '{}_{}'.format(main_target, haplotype)
-
-                        read_transcript_idx = str(alignment_file.gettid(read_transcript))
-
-                        if read_transcript_idx in arr_target_idx:
-                            bits.append(1)
-                        else:
-                            bits.append(0)
-
-                    print("{}\t{}\t{}\t# {}\t{}\tc={}".format(ec_idx[k],
-                                                            main_targets[main_target],
-                                                            utils.list_to_int(bits),
-                                                            main_target, bits, v))
-            '''
+                print('===========\nEC\n===========')
+                print("[i]\teccount")
+                temp_ec = []
+                t = 0
+                LOG.info(
+                    "NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
+                f.write(pack('<i', len(final.ec)))
+                for idx, k in enumerate(final.ec.keys()):
+                    # ec[k] is the count
+                    LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
+                    f.write(pack('<i', final.ec[k]))
+                    temp_ec.append(final.ec[k])
+                    print('[{}]\t{}'.format(t, final.ec[k]))
+                    t += 1
 
             LOG.info("{} created in {}, total time: {}".format(ec_filename,
                                                                utils.format_time(temp_time, time.time()),
