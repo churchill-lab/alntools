@@ -751,7 +751,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
         LOG.info("NPA SUM: {:,}".format(npa.sum()))
 
-        apm.count = npa.tocsr()
+        apm.count = npa.tocsc()
 
         LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                             utils.format_time(start_time, time.time())))
@@ -878,6 +878,60 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                     f.write(pack('<{}s'.format(len(CR)), CR))
 
                 #
+                # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
+                #     [# of ALIGNMENT MAPPINGS (AM) = A]
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 2)
+                #     ...
+                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM A)
+                #
+                # NOTE:
+                #     HAPLOTYPE flag is an integer that denotes which haplotype
+                #     (allele) a read aligns to given an EC. For example, 00,
+                #     01, 10, and 11 can specify whether a read aligns to the
+                #     1st and/or 2nd haplotype of a transcript.  These binary
+                #     numbers are converted to integers - 0, 1, 2, 3 - and
+                #     stored as the haplotype flag.
+                #
+                # Example:
+                #     5000
+                #     1 2 4
+                #     8 2 1
+                #     ...
+                #     100 200 8
+                #
+
+                LOG.info("Determining mappings...")
+
+                num_mappings = summat.nnz
+                summat = summat.tocsr()
+
+                LOG.info("A MATRIX: INDPTR LENGTH {:,}".format(len(summat.indptr)))
+                f.write(pack('<i', len(summat.indptr)))
+
+                # NON ZEROS
+                LOG.info("A MATRIX: NUMBER OF NON ZERO: {:,}".format(num_mappings))
+                f.write(pack('<i', num_mappings))
+
+                # ROW OFFSETS
+                LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
+                f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
+                LOG.error(summat.indptr)
+
+                # COLUMNS
+                LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
+                f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
+                LOG.error(summat.indices)
+
+                # DATA
+                LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
+                f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
+                LOG.error(summat.data)
+
+                # this is now csc, so change comments
+
+
+
                 # SECTION: EQUIVALENCE CLASS by CELL Matrix ("N" Matrix)
                 #     Instead of storing a "dense" matrix, we store a "sparse"
                 #     matrix utilizing Compressed Sparse Row (CSR) format.
@@ -938,56 +992,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                 f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
                 LOG.error(apm.count.data)
 
-                #
-                # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
-                #     [# of ALIGNMENT MAPPINGS (AM) = A]
-                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
-                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 2)
-                #     ...
-                #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM A)
-                #
-                # NOTE:
-                #     HAPLOTYPE flag is an integer that denotes which haplotype
-                #     (allele) a read aligns to given an EC. For example, 00,
-                #     01, 10, and 11 can specify whether a read aligns to the
-                #     1st and/or 2nd haplotype of a transcript.  These binary
-                #     numbers are converted to integers - 0, 1, 2, 3 - and
-                #     stored as the haplotype flag.
-                #
-                # Example:
-                #     5000
-                #     1 2 4
-                #     8 2 1
-                #     ...
-                #     100 200 8
-                #
-
-                LOG.info("Determining mappings...")
-
-                num_mappings = summat.nnz
-                summat = summat.tocsr()
-
-                LOG.info("A MATRIX: INDPTR LENGTH {:,}".format(len(summat.indptr)))
-                f.write(pack('<i', len(summat.indptr)))
-
-                # NON ZEROS
-                LOG.info("A MATRIX: NUMBER OF NON ZERO: {:,}".format(num_mappings))
-                f.write(pack('<i', num_mappings))
-
-                # ROW OFFSETS
-                LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
-                f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
-                LOG.error(summat.indptr)
-
-                # COLUMNS
-                LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
-                f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
-                LOG.error(summat.indices)
-
-                # DATA
-                LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
-                f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
-                LOG.error(summat.data)
 
             LOG.info("{} created in {}, total time: {}".format(ec_filename,
                                                                utils.format_time(temp_time, time.time()),

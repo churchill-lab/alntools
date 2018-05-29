@@ -802,10 +802,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                                      shape=(len(final.ec),
                                             len(main_targets)))
 
-
-
-
-
         LOG.info("Temp APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                                  utils.format_time(start_time, time.time())))
 
