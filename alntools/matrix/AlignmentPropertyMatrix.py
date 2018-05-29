@@ -50,7 +50,13 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
         elif h5file is not None:  # Use for loading from a pytables file
             h5fh = tables.open_file(h5file, 'r')
-            if h5fh.__contains__('%s' % (datanode + '/count')):
+            if self.num_samples > 1:  # Format-2
+                nmat_node = h5fh.get_node('/count')
+                indptr = h5fh.get_node(nmat_node, 'indptr').read()
+                indices = h5fh.get_node(nmat_node, 'indices').read()
+                data = h5fh.get_node(nmat_node, 'data').read()
+                self.count = csc_matrix((data, indices, indptr), shape=(self.num_reads, self.num_samples))
+            elif h5fh.__contains__('%s' % (datanode + '/count')):  # Format-1
                 self.count = h5fh.get_node(datanode, 'count').read()
             if not shallow:
                 self.hname = h5fh.get_node_attr(datanode, 'hname')
