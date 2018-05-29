@@ -766,7 +766,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
             temp_time = time.time()
             apm.finalize()
-            apm.save(emase_filename, title='bam2ec')
+            apm.save(emase_filename, title='Multisample APM', incidence_only=False)
             LOG.info("{} created in {}, total time: {}".format(emase_filename,
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))

@@ -42,6 +42,7 @@ docs/_build
 
 # IDE files
 .idea
+.vscode
 
 # nohup
 nohup.out
