@@ -402,10 +402,10 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         h5fh = tables.open_file(h5file, 'a')
         fil  = tables.Filters(complevel=1, complib=complib)
         if self.count is not None:
-            cgroup = h5fh.create_group(h5fh.root, 'count', 'Sparse matrix components for N matrix')
-            if isinstance(self.count, list):
+            if len(self.count) == 1:  # count is a vector
                 h5fh.create_carray(cgroup, 'data', obj=self.count, filters=fil)
-            else:
+            elif len(self.count) == 2:  # count is 2-dim matrix
+                cgroup = h5fh.create_group(h5fh.root, 'count', 'Sparse matrix components for N matrix')
                 h5fh.create_carray(cgroup, 'indptr', obj=self.count.indptr.astype(index_dtype), filters=fil)
                 h5fh.create_carray(cgroup, 'indices', obj=self.count.indices.astype(index_dtype), filters=fil)
                 h5fh.create_carray(cgroup, 'data', obj=self.count.data.astype(index_dtype), filters=fil)
