@@ -91,12 +91,11 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 else:
                     raise RuntimeError('The number of names does not match to the matrix shape.')
             if sample_names is not None:
-                if len(sample_names) == self.num_samples:
-                    self.sname = np.array(sample_names)
-                    self.sid   = dict(zip(self.sname, np.arange(self.num_samples)))
-                    self.num_samples = len(sample_names)
-                else:
-                    raise RuntimeError('The number of cells does not match to the matrix shape.')
+                self.sname = np.array(sample_names)
+                self.sid   = dict(zip(self.sname, np.arange(self.num_samples)))
+                self.num_samples = len(sample_names)
+            else:
+                self.num_samples = 1
 
         if grpfile is not None:
             self.__load_groups(grpfile)
