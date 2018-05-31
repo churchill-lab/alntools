@@ -791,7 +791,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                   locus_names=main_targets.keys(),
                   read_names=ec_ids)
 
-        apm.count = final.ec.values()
+        apm.count = np.array(final.ec.values(), dtype=np.int32)
 
         for h in xrange(0, len(haplotypes)):
             print(len(ec_arr[h]))
@@ -1119,7 +1119,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
-    except Exception as e:
+    except KeyboardInterrupt as e:
         LOG.fatal("ERROR: {}".format(str(e)))
         raise Exception(e)
 

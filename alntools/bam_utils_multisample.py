@@ -758,7 +758,10 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
         LOG.info('len indptr={}'.format(len(indptr)))
         LOG.info('indptr={}'.format(indptr[-10:]))
 
-        npa = csr_matrix((np.array(data), np.array(indices), np.array(indptr)), shape=(len(final.ec), len(CRS)))
+        npa = csr_matrix((np.array(data, dtype=np.int32),
+                          np.array(indices, dtype=np.int32),
+                          np.array(indptr, dtype=np.int32)),
+                         shape=(len(final.ec), len(CRS)))
 
         LOG.info("NPA SUM: {:,}".format(npa.sum()))
 
@@ -1357,8 +1360,8 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
             LOG.debug(
                 'CRS dimensions: {:,} x {:,}'.format(len(final.ec), len(CRS)))
 
-            #npa = lil_matrix((len(final.ec), len(CRS)), dtype=np.int32)
-            npa = dok_matrix((len(final.ec), len(CRS)), dtype=np.int32)
+            npa = lil_matrix((len(final.ec), len(CRS)), dtype=np.int32)
+            #npa = dok_matrix((len(final.ec), len(CRS)), dtype=np.int32)
             i = 0
             for eckey, crs in final.ec.iteritems():
                 # eckey = commas seperated list
