@@ -1108,20 +1108,12 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                 #     729
                 #
 
-                print('===========\nEC\n===========')
-                print("[i]\teccount")
-                temp_ec = []
-                t = 0
-                LOG.info(
-                    "NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
+                LOG.info("NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
                 f.write(pack('<i', len(final.ec)))
                 for idx, k in enumerate(final.ec.keys()):
                     # ec[k] is the count
                     LOG.debug("{:,}\t# {}\t{:,}".format(final.ec[k], k, idx))
                     f.write(pack('<i', final.ec[k]))
-                    temp_ec.append(final.ec[k])
-                    print('[{}]\t{}'.format(t, final.ec[k]))
-                    t += 1
 
             LOG.info("{} created in {}, total time: {}".format(ec_filename,
                                                                utils.format_time(temp_time, time.time()),
