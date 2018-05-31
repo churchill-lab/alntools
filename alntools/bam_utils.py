@@ -791,12 +791,14 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                   locus_names=main_targets.keys(),
                   read_names=ec_ids)
 
+        print("final.ec.values()={}".format(final.ec.values()))
+
         apm.count = np.array(final.ec.values(), dtype=np.int32)
 
-        for h in xrange(0, len(haplotypes)):
-            print(len(ec_arr[h]))
-            print(len(target_arr[h]))
+        print("apm.count={}".format(apm.count))
+        print("apm.count.shape={}".format(apm.count.shape))
 
+        for h in xrange(0, len(haplotypes)):
             d = np.ones(len(ec_arr[h]))
             apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])),
                                      shape=(len(final.ec),
@@ -866,15 +868,15 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                 #     1 H
                 #
 
-                print('===========\nHAPLOTYPES\n===========')
-                print("[i]\tnchar\thap")
+                #print('===========\nHAPLOTYPES\n===========')
+                #print("[i]\tnchar\thap")
                 LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(haplotypes)))
                 f.write(pack('<i', len(haplotypes)))
                 for idx, hap in enumerate(haplotypes):
                     f.write(pack('<i', len(hap)))
                     f.write(pack('<{}s'.format(len(hap)), hap))
                     LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
-                    print('[{}]\t{}\t{}'.format(idx, len(hap), hap))
+                    #print('[{}]\t{}\t{}'.format(idx, len(hap), hap))
 
                 #
                 # SECTION: TARGETS
@@ -891,8 +893,8 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                 #     18 ENSMUST00000778019 1900
                 #
 
-                print('===========\nTARGETS\n===========')
-                print("[i]\tnchar\ttarget\tlengths")
+                #print('===========\nTARGETS\n===========')
+                #print("[i]\tnchar\ttarget\tlengths")
                 LOG.info("NUMBER OF TARGETS: {:,}".format(len(main_targets)))
                 f.write(pack('<i', len(main_targets)))
                 for main_target, idx in main_targets.iteritems():
@@ -907,7 +909,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                         lengths.append(str(length))
 
                     LOG.debug("#{:,} --> {:,}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
-                    print("[{}]\t{}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
+                    #print("[{}]\t{}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
 
                 #
                 # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
