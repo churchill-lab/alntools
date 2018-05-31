@@ -535,6 +535,10 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
             LOG.info("Modifying number of chunks from {} to 1000".format(num_chunks))
             num_chunks = 1000
 
+    # get a sane number of processes
+    if num_chunks < num_processes:
+        num_processes = num_chunks
+
     if not temp_dir:
         if emase_filename:
             temp_dir = os.path.dirname(emase_filename)
@@ -791,12 +795,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                   locus_names=main_targets.keys(),
                   read_names=ec_ids)
 
-        print("final.ec.values()={}".format(final.ec.values()))
-
         apm.count = np.array(final.ec.values(), dtype=np.int32)
-
-        print("apm.count={}".format(apm.count))
-        print("apm.count.shape={}".format(apm.count.shape))
 
         for h in xrange(0, len(haplotypes)):
             d = np.ones(len(ec_arr[h]))
