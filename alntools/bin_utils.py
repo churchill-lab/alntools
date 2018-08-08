@@ -1,25 +1,18 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 from future.utils import iteritems
-from struct import pack, unpack, calcsize
+from struct import pack
 
-import csv
 import gzip
 import os
-import re
-import tempfile
 import time
 
 import numpy as np
 
-from scipy.sparse import coo_matrix, diags, csr_matrix, csc_matrix
+from scipy.sparse import coo_matrix, csr_matrix
 
 from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-from . import bam_utils
 from . import bin_file
-from . import db_utils
-from . import bam_utils_multisample
-from . import barcode_utils
 from . import utils
 
 LOG = utils.get_logger()
@@ -28,7 +21,6 @@ try:
     xrange
 except NameError:
     xrange = range
-
 
 
 def get_ec_dict(self):
@@ -76,9 +68,6 @@ def combine(ec_files, ec_out):
 
         ECF_num_haps = len(ECF.haplotypes_idx)
 
-        print('ECF.a_matrix.shape=', ECF.a_matrix.shape)
-        print('ECF.n_matrix.shape=', ECF.n_matrix.shape)
-
         for idx in xrange(ECF.a_matrix.shape[0]):
             # get the row values
             a_row = ECF.a_matrix.getrow(idx)
@@ -86,29 +75,7 @@ def combine(ec_files, ec_out):
             # only need the columns (targets) that have values
             a_col = list(a_row.nonzero()[1])
 
-            #print('---------------------------------')
-            #print('idx=', idx)
-            #print('a_row=', a_row)
-            #print('a_col=', a_col)
-
-            # vals will be a list of TRANSCRIPT:HAPFLAG
-            #vals = ['{}:{}'.format(ECF.targets_idx[v], a_row[0, v]) for v in a_col]
-            #print('vals 1=', vals)
-
-            vals = []
-
-            for v in a_col:
-                haps = utils.int_to_list(a_row[0, v], ECF_num_haps)
-
-                for h_idx, h in enumerate(haps):
-                    if h != 0:
-                        vals.append('{}:{}'.format(ECF.targets_idx[v], ECF.haplotypes_idx[h_idx]))
-
-            #print('vals=', vals)
-
-            # ec_key is comma seperated list of vals
-            # sort because transcripts might not be in same order
-            ec_key = ','.join(sorted(vals))
+            ec_key = ','.join(['{}:{}'.format(v, a_row[0, v]) for v in a_col])
             #print('ec_key=', ec_key)
 
             # get the n matrix row (same ec)
@@ -166,13 +133,6 @@ def combine(ec_files, ec_out):
                         ec_totals[eckey] = count
 
 
-            #print('haplotypes = ', haplotypes)
-            #print('targets = ', targets)
-            #print('samples = ', samples)
-
-            #print('ec_idx = ', ec_idx)
-            #print('sample_totals = ', sample_totals)
-            #print('ec_totals = ', ec_totals)
         else:
             #
             # we are assuming haplotypes and transcripts are the same
@@ -251,13 +211,24 @@ def combine(ec_files, ec_out):
         ec_arr = [[] for _ in xrange(0, len(haplotypes))]
         target_arr = [[] for _ in xrange(0, len(haplotypes))]
 
+        #print('ec_ids=', ec_ids)
+        #print('ec_arr=', ec_arr)
+        #print('target_arr=', target_arr)
+
+
         indptr = [0]
         indices = []
         data = []
 
+        #print('ec_idx=', ec_idx)
+        #print('targets=', targets)
+
         # k = comma seperated string of tids:count
         # v = dict of samples and counts
         for (eckey, crdict) in iteritems(ECS):
+            #print('')
+            #print('eckey=', eckey)
+            #print('crdict=', crdict)
             target_info = eckey.split(',')
             #print('target_info=', target_info)
 
@@ -266,19 +237,28 @@ def combine(ec_files, ec_out):
 
                 target = elems[0]
                 haplotype = elems[1]
+                #print('target, haplotype=', target, haplotype)
 
-                #print('haplotype=', haplotype, haplotypes[haplotype])
+                haps = utils.int_to_list(int(haplotype), ECF_num_haps)
+                #print('haps=', haps)
 
-                ec_arr[haplotypes[haplotype]].append(ec_idx[eckey])
-                target_arr[haplotypes[haplotype]].append(targets[target])
+                for h_idx, h in enumerate(haps):
+                    if h != 0:
+                        #print('h_idx, h = ', h_idx, h)
+
+                        ec_arr[h_idx].append(ec_idx[eckey])
+                        target_arr[h_idx].append(int(target))
 
             # construct "N" matrix elements
             ti = sorted(crdict.keys(), key=lambda i: samples[i])
 
             a = 0
             for crskey in ti:
+                #print('crs_key=', crskey)
                 col = samples[crskey]
+                #print('col=', col)
                 indices.append(col)
+                #print('crdict[crskey]=', crdict[crskey])
                 data.append(crdict[crskey])
                 a += 1
 
@@ -481,17 +461,17 @@ def combine(ec_files, ec_out):
                 # ROW OFFSETS
                 LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
                 f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
-                LOG.error(summat.indptr)
+                LOG.debug(summat.indptr)
 
                 # COLUMNS
                 LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
                 f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
-                LOG.error(summat.indices)
+                LOG.debug(summat.indices)
 
                 # DATA
                 LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
                 f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
-                LOG.error(summat.data)
+                LOG.debug(summat.data)
 
                 #
                 # SECTION: "N" Matrix
@@ -514,17 +494,17 @@ def combine(ec_files, ec_out):
                 # ROW OFFSETS
                 LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
                 f.write(pack('<{}i'.format(len(apm.count.indptr)), *apm.count.indptr))
-                LOG.error(apm.count.indptr)
+                LOG.debug(apm.count.indptr)
 
                 # COLUMNS
                 LOG.info("N MATRIX: LENGTH INDICES: {:,}".format(len(apm.count.indices)))
                 f.write(pack('<{}i'.format(len(apm.count.indices)), *apm.count.indices))
-                LOG.error(apm.count.indices)
+                LOG.debug(apm.count.indices)
 
                 # DATA
                 LOG.info("N MATRIX: LENGTH DATA: {:,}".format(len(apm.count.data)))
                 f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
-                LOG.error(apm.count.data)
+                LOG.debug(apm.count.data)
 
             LOG.info("{} created in {}, total time: {}".format(ec_out,
                                                                utils.format_time(temp_time, time.time()),
