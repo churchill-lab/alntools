@@ -1,8 +1,12 @@
 # -*- coding: utf-8 -*-
 from __future__ import print_function
 
+import glob
+import os
+
 import click
 
+from . import bin_utils
 from . import methods
 from . import utils
 from . import viewer
@@ -198,6 +202,55 @@ def dumpec(ec_file, verbose):
     """
     utils.configure_logging(verbose)
     methods.dumpec(ec_file)
+
+
+@cli.command('merge', options_metavar='<options>', short_help='merge multiple ec files')
+@click.option('-i', '--input',
+              metavar='input',
+              type=click.Path(exists=True, resolve_path=True, dir_okay=False),
+              multiple=True,
+              help="input file, can specify multiple")
+@click.option('-d', '--directory',
+              metavar='directory',
+              type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True),
+              help="input directory")
+@click.option('-o', '--output',
+              metavar='output',
+              type=click.Path(resolve_path=True, dir_okay=False),
+              help="output file")
+@click.option('-v', '--verbose',
+              count=True,
+              help='the more times listed, the more output')
+def merge(input, directory, output, verbose):
+    """
+    Combine multiple ec files.
+    """
+    utils.configure_logging(verbose)
+    #methods.dumpec(ec_file)
+    #print(input)
+    #print(directory)
+    #print(output)
+
+    input_files = list(input)
+
+    if directory:
+        bin_files = glob.glob(os.path.join(directory, "*.*"))
+        if len(bin_files) == 0:
+            print('No bin files found in directory: {}'.format(directory))
+            return None
+
+        if input_files is None:
+            input_files = bin_files
+        else:
+            input_files.extend(bin_files)
+
+
+    #print(input_files)
+    bin_utils.combine(input_files, output)
+
+
+
+
 
 
 if __name__ == '__main__':

@@ -355,7 +355,7 @@ def wrapper_range(args):
 # +
 # quality
 
-def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_count=-1, number_processes=-1, temp_dir=None, range_filename=None):
+def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_count=1, number_processes=-1, temp_dir=None, range_filename=None):
     """
     """
     LOG.debug('Parameters')
@@ -578,44 +578,45 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
     #LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
 
     # filter everything
+    if minimum_count <= 0:
+        minimum_count = 1
+
     LOG.debug("Minimum Count: {:,}".format(minimum_count))
+    LOG.info("FILTERING CRS: {:,}".format(len(CRS)))
+    # find the new CRS
+    CRS = OrderedDict()
 
-    if minimum_count > 0:
-        LOG.info("FILTERING CRS: {:,}".format(len(CRS)))
-        # find the new CRS
-        CRS = OrderedDict()
+    for CR, CR_total in cr_totals.iteritems():
+        if CR_total >= minimum_count:
+            if CR not in CRS:
+                CRS[CR] = len(CRS)
 
-        for CR, CR_total in cr_totals.iteritems():
-            if CR_total >= minimum_count:
-                if CR not in CRS:
-                    CRS[CR] = len(CRS)
+    # remove invalid CRS from ECs
+    new_ecs = OrderedDict()
+    new_ec_idx = {}
+    new_ec_totals = {}
+    # loop through ecs
+    for eckey, crs in final.ec.iteritems():
+        # potential new ec
 
-        # remove invalid CRS from ECs
-        new_ecs = OrderedDict()
-        new_ec_idx = {}
-        new_ec_totals = {}
-        # loop through ecs
-        for eckey, crs in final.ec.iteritems():
-            # potential new ec
+        ec = {}
+        total = 0
+        # loop through valid CRS and and if valid
+        for crkey, crcount in crs.iteritems():
 
-            ec = {}
-            total = 0
-            # loop through valid CRS and and if valid
-            for crkey, crcount in crs.iteritems():
+            if crkey in CRS:
+                ec[crkey] = crs[crkey]
+                total += crcount
 
-                if crkey in CRS:
-                    ec[crkey] = crs[crkey]
-                    total += crcount
+        # only add to new ecs if there is anything
+        if len(ec) > 0:
+            new_ecs[eckey] = ec
+            new_ec_idx[eckey] = len(new_ec_idx)
+            new_ec_totals[eckey] = total
 
-            # only add to new ecs if there is anything
-            if len(ec) > 0:
-                new_ecs[eckey] = ec
-                new_ec_idx[eckey] = len(new_ec_idx)
-                new_ec_totals[eckey] = total
-
-        #ec_totals = new_ec_totals
-        final.ec = new_ecs
-        ec_idx = new_ec_idx
+    #ec_totals = new_ec_totals
+    final.ec = new_ecs
+    ec_idx = new_ec_idx
 
     LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
     LOG.info("# Main Targets: {:,}".format(len(main_targets)))

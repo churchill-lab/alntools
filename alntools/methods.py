@@ -172,23 +172,38 @@ class EC:
         self.version = -1
         self.filename = filename
 
-        self.targets_list = []
-        self.targets_dict = OrderedDict()
+        self.haplotypes = OrderedDict()
+        self.targets = OrderedDict()
 
-        self.haplotypes_list = []
-        self.haplotypes_dict = OrderedDict()
-
+        #
         # Version 0
+        #
 
         self.reads_list = []
         self.reads_dict = OrderedDict()
 
+        #
         # Version 1
+        #
+
+        # "A" Matrix (Compressed Sparse Row format)
+
+        self.a_indptr = None
+        self.a_indices = None
+        self.a_data = None
+
+        # Equivalence Classes
+        self.ec = []
+
+        #
+        # Version 2
+        #
+
+        # "A" Matrix (Compressed Sparse Row format)
 
         self.ec_list = []
         self.ec_counts_list = []
         self.alignments = []
-
 
 def parse_ec(file_in, detail=False):
     """
@@ -220,7 +235,7 @@ def parse_ec(file_in, detail=False):
     elif ec.version == 2:
         LOG.error("Version: 2, Multisample")
     else:
-        LOG.error("Unknown version, exiting")
+        LOG.error("Unknown version: {}, exiting".format(ec.version))
         LOG.error("Exiting")
         return
 
@@ -285,6 +300,13 @@ def parse_ec(file_in, detail=False):
             ec.alignments.append((read_index, target_index, bit_flag))
             LOG.info("{} {} {}  # {} {} {} ".format(read_index, target_index, bit_flag, ec.reads_list[read_index], ec.targets_list[target_index], bit_flag))
     elif ec.version == 1:
+
+        indptr_length = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+        nnz = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
+
+
+
+
         num_ec = np.fromfile(f, dtype=np.dtype('i'), count=1)[0]
         LOG.error("Equivalence Class Count: {0:,}".format(num_ec))
 
@@ -436,6 +458,7 @@ def ec2emase(file_in, file_out):
     LOG.info("{} created in {}, total time: {}".format(file_out,
                                                    utils.format_time(temp_time, time.time()),
                                                    utils.format_time(start_time, time.time())))
+
 
 def dumpec(ec_filename, detail=False):
     parse_ec(ec_filename, detail)
