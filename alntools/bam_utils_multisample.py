@@ -681,7 +681,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
         data = []
 
         # k = comma seperated string of tids
-        # v = the count
+        # v = CRS and counts
         for k, v in final.ec.iteritems():
             arr_target_idx = k.split(",")
 
@@ -925,17 +925,17 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                 # ROW OFFSETS
                 LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
                 f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
-                LOG.error(summat.indptr)
+                # LOG.error(summat.indptr)
 
                 # COLUMNS
                 LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
                 f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
-                LOG.error(summat.indices)
+                # LOG.error(summat.indices)
 
                 # DATA
                 LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
                 f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
-                LOG.error(summat.data)
+                # LOG.error(summat.data)
 
                 #
                 # SECTION: "N" Matrix
@@ -951,7 +951,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                 LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
                 f.write(pack('<i', len(apm.count.indptr)))
 
-
                 # NON ZEROS
                 LOG.info("N MATRIX: NUMBER OF NON ZERO: {:,}".format(apm.count.nnz))
                 f.write(pack('<i', apm.count.nnz))
@@ -959,17 +958,17 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                 # ROW OFFSETS
                 LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
                 f.write(pack('<{}i'.format(len(apm.count.indptr)), *apm.count.indptr))
-                LOG.error(apm.count.indptr)
+                # LOG.error(apm.count.indptr)
 
                 # COLUMNS
                 LOG.info("N MATRIX: LENGTH INDICES: {:,}".format(len(apm.count.indices)))
                 f.write(pack('<{}i'.format(len(apm.count.indices)), *apm.count.indices))
-                LOG.error(apm.count.indices)
+                # LOG.error(apm.count.indices)
 
                 # DATA
                 LOG.info("N MATRIX: LENGTH DATA: {:,}".format(len(apm.count.data)))
                 f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
-                LOG.error(apm.count.data)
+                # LOG.error(apm.count.data)
 
 
             LOG.info("{} created in {}, total time: {}".format(ec_filename,

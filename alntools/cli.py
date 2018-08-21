@@ -27,11 +27,20 @@ def cli():
     """
 
 
-@cli.command('split', options_metavar='<options>', short_help='split a BAM file into many')
-@click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
-@click.argument('number', metavar='number', type=int)
-@click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="output directory")
-@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+@cli.command('split', options_metavar='<options>',
+             short_help='split a BAM file into many')
+@click.argument('bam_file',
+                metavar='bam_file',
+                type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.argument('number',
+                metavar='number',
+                type=int)
+@click.option('-d', '--directory',
+              type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True),
+              help="output directory")
+@click.option('-v', '--verbose',
+              count=True,
+              help='the more times listed, the more output')
 def split(bam_file, number, directory, verbose):
     """
     Convert a BAM file (bam_file) to an EC file (ec_file).
@@ -49,16 +58,20 @@ def split(bam_file, number, directory, verbose):
 @click.option('--multisample', is_flag=True)
 @click.option('-p', '--number_processes', default=-1, help="number of processes")
 @click.option('--rangefile', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True), help="range file")
+@click.option('-s', '--sample', help="sample identifier")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def bam2ec(bam_file, ec_file, chunks, directory, mincount, multisample, number_processes, rangefile, verbose):
+def bam2ec(bam_file, ec_file, chunks, directory, mincount, multisample, number_processes, rangefile, sample, verbose):
     """
     Convert a BAM file (bam_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
     if multisample:
+        if sample:
+            print('-s, --sample should NOT be specified with --multisample')
+            return
         methods.bam2ec_multisample(bam_file, ec_file, chunks, mincount, directory, number_processes, rangefile)
     else:
-        methods.bam2ec(bam_file, ec_file, chunks, directory, number_processes, rangefile)
+        methods.bam2ec(bam_file, ec_file, chunks, directory, number_processes, rangefile, sample)
 
 
 @cli.command('bam2emase', options_metavar='<options>', short_help='convert a BAM file to APM')
@@ -76,6 +89,7 @@ def bam2emase(bam_file, emase_file, chunks, directory, mincount, multisample, nu
     Convert a BAM file (bam_file) to an EMASE file (emase_file).
     """
     utils.configure_logging(verbose)
+
     if multisample:
         methods.bam2emase_multisample(bam_file, emase_file, chunks, mincount, directory, number_processes, rangefile)
     else:
@@ -92,16 +106,20 @@ def bam2emase(bam_file, emase_file, chunks, directory, mincount, multisample, nu
 @click.option('--multisample', is_flag=True)
 @click.option('-p', '--number_processes', default=-1, help="number of processes")
 @click.option('--rangefile', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True), help="range file")
+@click.option('-s', '--sample', help="sample identifier")
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def bam2both(bam_file, ec_file, emase_file, chunks, directory, mincount, multisample, number_processes, rangefile, verbose):
+def bam2both(bam_file, ec_file, emase_file, chunks, directory, mincount, multisample, number_processes, rangefile, sample, verbose):
     """
     Convert a BAM file (bam_file) to an EC file (ec_file).
     """
     utils.configure_logging(verbose)
     if multisample:
+        if sample:
+            print('-s, --sample should NOT be specified with --multisample')
+            return
         methods.bam2both_multisample(bam_file, ec_file, emase_file, chunks, mincount, directory, number_processes, rangefile)
     else:
-        methods.bam2both(bam_file, ec_file, emase_file, chunks, directory, number_processes, rangefile)
+        methods.bam2both(bam_file, ec_file, emase_file, chunks, directory, number_processes, rangefile, sample)
 
 
 @cli.command('emase2ec', options_metavar='<options>', short_help='convert an EMASE file to EC')
@@ -247,10 +265,6 @@ def merge(input, directory, output, verbose):
 
     #print(input_files)
     bin_utils.combine(input_files, output)
-
-
-
-
 
 
 if __name__ == '__main__':
