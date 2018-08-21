@@ -876,7 +876,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
             with gzip.open(ec_filename, 'wb') as f:
                 # format
-                f.write(pack('<i', 1))
+                f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")
 
                 #
