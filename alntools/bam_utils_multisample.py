@@ -849,14 +849,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 f.write(pack('<i', 2))
                 LOG.info("VERSION: 2")
 
-                # targets
-                LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
-                f.write(pack('<i', len(final.main_targets)))
-                for main_target, idx in final.main_targets.iteritems():
-                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-                    f.write(pack('<i', len(main_target)))
-                    f.write(pack('<{}s'.format(len(main_target)), main_target))
-
                 # haplotypes
                 LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
                 f.write(pack('<i', len(final.haplotypes)))
@@ -865,6 +857,14 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                     f.write(pack('<i', len(hap)))
                     f.write(pack('<{}s'.format(len(hap)), hap))
 
+
+                # targets
+                LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
+                f.write(pack('<i', len(final.main_targets)))
+                for main_target, idx in final.main_targets.iteritems():
+                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+                    f.write(pack('<i', len(main_target)))
+                    f.write(pack('<{}s'.format(len(main_target)), main_target))
 
                 #
                 LOG.info("FILTERED CRS: {:,}".format(len(final.CRS)))
