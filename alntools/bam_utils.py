@@ -847,14 +847,6 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
             f.write(pack('<i', 1))
             LOG.info("VERSION: 1")
 
-            # targets
-            LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
-            f.write(pack('<i', len(final.main_targets)))
-            for main_target, idx in final.main_targets.iteritems():
-                LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-                f.write(pack('<i', len(main_target)))
-                f.write(pack('<{}s'.format(len(main_target)), main_target))
-
             # haplotypes
             LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(final.haplotypes)))
             f.write(pack('<i', len(final.haplotypes)))
@@ -862,6 +854,14 @@ def convert(bam_filename, output_filename, num_chunks=0, target_filename=None, e
                 LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
                 f.write(pack('<i', len(hap)))
                 f.write(pack('<{}s'.format(len(hap)), hap))
+
+            # targets
+            LOG.info("NUMBER OF TARGETS: {:,}".format(len(final.main_targets)))
+            f.write(pack('<i', len(final.main_targets)))
+            for main_target, idx in final.main_targets.iteritems():
+                LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
+                f.write(pack('<i', len(main_target)))
+                f.write(pack('<{}s'.format(len(main_target)), main_target))
 
             # equivalence classes
             LOG.info("NUMBER OF EQUIVALANCE CLASSES: {:,}".format(len(final.ec)))
