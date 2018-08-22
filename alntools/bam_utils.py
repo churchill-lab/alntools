@@ -820,6 +820,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         npa = csr_matrix(data)
 
         LOG.info("NPA SUM: {:,}".format(npa.sum()))
+        LOG.info(npa)
 
         apm.count = npa.tocsc()
 
