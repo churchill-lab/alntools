@@ -9,7 +9,7 @@ import sys
 import time
 
 from Bio import bgzf
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
 
 import numpy as np
 import pysam
@@ -817,12 +817,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         LOG.info('len data={}'.format(len(data)))
         LOG.info('data={}'.format(data[-10:]))
 
-        npa = csr_matrix(data)
-
-        LOG.info("NPA SUM: {:,}".format(npa.sum()))
-        LOG.info(npa)
-
-        apm.count = npa.tocsc()
+        apm.count = csc_matrix(np.matrix(data).T)
 
         LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
                                                             utils.format_time(start_time, time.time())))
