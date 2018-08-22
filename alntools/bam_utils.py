@@ -756,8 +756,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         ec_arr = [[] for _ in xrange(0, len(haplotypes))]
         target_arr = [[] for _ in xrange(0, len(haplotypes))]
 
-        indptr = [0]
-        indices = []
         data = []
 
         # k = comma seperated string of tids
@@ -799,9 +797,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                         #print('ec_arr[i] appending ', ec_idx[k])
                         #print('target_arr[i] appending ', main_targets[main_target])
 
-            indices.append(0)
             data.append(v)
-            indptr.append(indptr[-1] + 1)
 
         apm = APM(shape=new_shape,
                   haplotype_names=haplotypes,
@@ -820,15 +816,8 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
         LOG.info('len data={}'.format(len(data)))
         LOG.info('data={}'.format(data[-10:]))
-        LOG.info('len indices={}'.format(len(indices)))
-        LOG.info('indices={}'.format(indices[-10:]))
-        LOG.info('len indptr={}'.format(len(indptr)))
-        LOG.info('indptr={}'.format(indptr[-10:]))
 
-        npa = csr_matrix((np.array(data, dtype=np.int32),
-                          np.array(indices, dtype=np.int32),
-                          np.array(indptr, dtype=np.int32)),
-                         shape=(len(final.ec), 1))
+        npa = csr_matrix(data)
 
         LOG.info("NPA SUM: {:,}".format(npa.sum()))
 
