@@ -814,8 +814,8 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         LOG.debug('Constructing CRS...')
         LOG.debug('CRS dimensions: {:,} x {:,}'.format(len(final.ec), 1))
 
-        LOG.info('len data={}'.format(len(data)))
-        LOG.info('data={}'.format(data[-10:]))
+        #LOG.info('len data={}'.format(len(data)))
+        #LOG.info('data={}'.format(data[-10:]))
 
         apm.count = csc_matrix(np.matrix(data).T)
 
