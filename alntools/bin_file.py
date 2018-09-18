@@ -247,6 +247,8 @@ class ECFile:
         _i = calcsize("<i")
         _s = calcsize("<s")
 
+        start_time = time.time()
+
         # attempt to see if this is gzipped (version 2)
         with gzip.open(self.filename, 'rb') as f:
 
@@ -284,6 +286,8 @@ class ECFile:
             #     1 H
             #
 
+            temp_time = time.time()
+
             self.haplotypes = OrderedDict()
             self.haplotypes_idx = []
 
@@ -296,6 +300,10 @@ class ECFile:
                 self.haplotypes[haplotype] = i
                 self.haplotypes_idx.append(haplotype)
                 LOG.debug("{} {}".format(i, haplotype))
+
+            LOG.info("Haplotypes extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
 
             #
             # SECTION: TARGETS
@@ -311,6 +319,8 @@ class ECFile:
             #     ...
             #     18 ENSMUST00000778019 1900 1899
             #
+
+            temp_time = time.time()
 
             self.targets = OrderedDict()
             self.targets_idx = []
@@ -331,6 +341,10 @@ class ECFile:
                     hap_length[haplotype] = unpack('<i', f.read(_i))[0]
 
                 self.targets_lengths[target] = hap_length
+
+            LOG.info("Targets extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
 
             if self.format == 1:
                 #
@@ -384,6 +398,8 @@ class ECFile:
                 # CR
                 #
 
+                temp_time = time.time()
+
                 self.samples = OrderedDict()
 
                 num_samples = unpack('<i', f.read(_i))[0]
@@ -396,6 +412,9 @@ class ECFile:
                     self.samples_idx.append(sample)
                     LOG.debug("{} {}".format(i, sample))
 
+                LOG.info("Samples extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
 
                 #
                 # SECTION: "A" Matrix
@@ -415,6 +434,9 @@ class ECFile:
                 #     stored as the haplotype flag.
                 #
 
+                temp_time = time.time()
+                a_time = time.time()
+
                 indptr_length = unpack('<i', f.read(_i))[0]
                 nnz = unpack('<i', f.read(_i))[0]
 
@@ -422,10 +444,37 @@ class ECFile:
                 LOG.error("A MATRIX NNZ: {0:,}".format(nnz))
 
                 indptr = np.array(unpack('<{}i'.format(indptr_length), f.read(_i * indptr_length)), dtype=np.int32)
+
+                LOG.info("indptr extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                temp_time = time.time()
+
                 indices = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
+
+                LOG.info("indices extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                temp_time = time.time()
+
                 data = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
 
+                LOG.info("data extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                temp_time = time.time()
+
                 self.a_matrix = csr_matrix((data, indices, indptr))
+
+                LOG.info("A matrix created in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                LOG.info("A matrix extraction and creation: {}".format(
+                        utils.format_time(a_time, time.time())))
 
                 #
                 # SECTION: "N" Matrix
@@ -449,6 +498,9 @@ class ECFile:
                 # - data is array of corresponding nonzero values
                 #
 
+                temp_time = time.time()
+                n_time = time.time()
+
                 indptr_length = unpack('<i', f.read(_i))[0]
                 nnz = unpack('<i', f.read(_i))[0]
 
@@ -456,16 +508,92 @@ class ECFile:
                 LOG.error("N MATRIX NNZ: {0:,}".format(nnz))
 
                 indptr = np.array(unpack('<{}i'.format(indptr_length), f.read(_i * indptr_length)), dtype=np.int32)
+
+                LOG.info("indptr extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                temp_time = time.time()
+
                 indices = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
+
+                LOG.info("indices extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                temp_time = time.time()
+
                 data = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
 
+                LOG.info("data extracted in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                temp_time = time.time()
+
                 self.n_matrix = csc_matrix((data, indices, indptr))
+
+                LOG.info("N matrix created in {}, total time: {}".format(
+                        utils.format_time(temp_time, time.time()),
+                        utils.format_time(start_time, time.time())))
+
+                LOG.info("N matrix extraction and creation: {}".format(
+                        utils.format_time(n_time, time.time())))
+
+                LOG.info("All data parsed in: {}".format(
+                        utils.format_time(start_time, time.time())))
 
     def get_samples(self):
         pass
 
     def get_ec_dict(self):
+        start_time = time.time()
         ecs = OrderedDict()
-        for idx, row in xrange(len(self.a_matrix.indptr)):
+        for idx in xrange(len(self.a_matrix.indptr) - 1):
             ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
+            #ec_key = self.a_matrix.getrow(idx).nonzero()[1]
             ecs[ec_key] = len(ecs)
+        LOG.info("dict: {}".format(
+                utils.format_time(start_time, time.time())))
+
+    def get_ec_dict2(self):
+        start_time = time.time()
+        ecs = {}
+        for idx in xrange(len(self.a_matrix.indptr) - 1):
+            ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
+            #ec_key = self.a_matrix.getrow(idx).nonzero()[1]
+            ecs[ec_key] = len(ecs)
+        LOG.info("dict: {}".format(
+                utils.format_time(start_time, time.time())))
+
+    def get_ec_dict3(self):
+        start_time = time.time()
+        ecs = OrderedDict()
+        for idx in xrange(len(self.a_matrix.indptr) - 1):
+            #ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
+            ec_key = tuple(self.a_matrix.getrow(idx).nonzero()[1].tolist())
+            ecs[ec_key] = len(ecs)
+        LOG.info("dict: {}".format(
+                utils.format_time(start_time, time.time())))
+
+    def get_ec_dict4(self):
+        start_time = time.time()
+        ecs = {}
+        for idx in xrange(len(self.a_matrix.indptr) - 1):
+            #ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
+            ec_key = tuple(self.a_matrix.getrow(idx).nonzero()[1].tolist())
+            ecs[ec_key] = len(ecs)
+        LOG.info("dict: {}".format(
+                utils.format_time(start_time, time.time())))
+
+
+
+    def get_ec_crs_dict(self):
+        start_time = time.time()
+        ecs = OrderedDict()
+        for idx in xrange(len(self.n_matrix.indptr) - 1):
+            ec_key = ','.join(map(str, self.n_matrix.getrow(idx).nonzero()[1]))
+            #ec_key = self.a_matrix.getrow(idx).nonzero()[1]
+            ecs[ec_key] = len(ecs)
+        LOG.info("dict: {}".format(
+                utils.format_time(start_time, time.time())))

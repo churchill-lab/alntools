@@ -68,15 +68,29 @@ def combine(ec_files, ec_out):
 
         ECF_num_haps = len(ECF.haplotypes_idx)
 
+        temp_time = time.time()
+
+        LOG.info('Looping through {:,} EC keys to generate dictionary'.format(ECF.a_matrix.shape[0]))
+
         for idx in xrange(ECF.a_matrix.shape[0]):
+
+            if idx % 1000 == 0:
+                LOG.info("idx: {}, time: {}, total time: {}".format(idx,
+                                                                    utils.format_time(
+                                                                        temp_time,
+                                                                        time.time()),
+                                                                    utils.format_time(start_time, time.time())))
+
+
             # get the row values
             a_row = ECF.a_matrix.getrow(idx)
 
             # only need the columns (targets) that have values
             a_col = list(a_row.nonzero()[1])
 
+            #ec_key = ','.join(['{}:{}'.format(v, a_row[0, v]) for v in a_col])
             ec_key = ','.join(['{}:{}'.format(v, a_row[0, v]) for v in a_col])
-            #print('ec_key=', ec_key)
+            print('ec_key=', ec_key)
 
             # get the n matrix row (same ec)
             n_row = ECF.n_matrix.getrow(idx)
@@ -95,10 +109,19 @@ def combine(ec_files, ec_out):
             #    print('ECF.samples_idx[v]=', ECF.samples_idx[v])
 
             current_ECS[ec_key] = {ECF.samples_idx[v]: n_row[0, v] for v in n_col}
+            print(current_ECS[ec_key])
 
         #print('current_ECS=', current_ECS)
 
+        LOG.info("Dictionary created {}, total time: {}".format(
+                utils.format_time(temp_time, time.time()),
+                utils.format_time(start_time, time.time())))
+
+        temp_time = time.time()
+
         if ec_file_idx == 0:
+            LOG.info("First file so generating target lengths, ec_totals, etc")
+
             ECS = current_ECS
 
             for (h, idx) in iteritems(ECF.haplotypes):
@@ -132,6 +155,9 @@ def combine(ec_files, ec_out):
                     else:
                         ec_totals[eckey] = count
 
+            LOG.info("Done first file in {}, total time: {}".format(
+                    utils.format_time(temp_time, time.time()),
+                    utils.format_time(start_time, time.time())))
 
         else:
             #
@@ -139,6 +165,9 @@ def combine(ec_files, ec_out):
             #
             # haplotypes should be in same order
             #
+
+            LOG.info("File number: {}, combining...".format(ec_file_idx))
+
             for (h, idx) in iteritems(ECF.haplotypes):
                 if h not in haplotypes:
                     haplotypes[h] = len(haplotypes)
@@ -181,6 +210,10 @@ def combine(ec_files, ec_out):
                     else:
                         ec_idx[eckey] = len(ec_idx)
                         ECS[eckey] = {crkey: count}
+
+            LOG.info("Done file in {}, total time: {}".format(
+                            utils.format_time(temp_time, time.time()),
+                            utils.format_time(start_time, time.time())))
 
     #
     # create the binary file
