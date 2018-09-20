@@ -273,12 +273,15 @@ def process_convert_bam(cp):
             # query_name = Column 1 from file, the Query template NAME
             bam_tags = query_name.split('|||')
             #orig_query_name = bam_tags[0]
-            bam_tag_CR = bam_tags[2]
+            #bam_tag_CR = bam_tags[2]
             #bam_tag_CY = bam_tags[4]
             #bam_tag_UR = bam_tags[6]
             #bam_tag_UY = bam_tags[8]
             #bam_tag_BC = bam_tags[10]
             #bam_tag_QT = bam_tags[12]
+
+            # NEW CID
+            bam_tag_CID = bam_tags[14]
 
             # set tags and dump new alignment
             alignment_query_name = alignment.query_name
@@ -288,7 +291,7 @@ def process_convert_bam(cp):
 
             if query_name != alignment_query_name:
                 ec_key = ','.join(sorted(reference_ids))
-                ec[ec_key][bam_tag_CR] += 1
+                ec[ec_key][bam_tag_CID] += 1
 
                 query_name = alignment.query_name
 
