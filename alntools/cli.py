@@ -122,30 +122,6 @@ def bam2both(bam_file, ec_file, emase_file, chunks, directory, mincount, multisa
         methods.bam2both(bam_file, ec_file, emase_file, chunks, directory, number_processes, rangefile, sample)
 
 
-@cli.command('emase2ec', options_metavar='<options>', short_help='convert an EMASE file to EC')
-@click.argument('emase_file', metavar='emase_file', type=click.Path(resolve_path=True, dir_okay=False))
-@click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
-@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def emase2ec(emase_file, ec_file, verbose):
-    """
-    Convert an EMASE file (emase_file) to an EC file (ec_file).
-    """
-    utils.configure_logging(verbose)
-    methods.emase2ec(emase_file, ec_file)
-
-
-@cli.command('ec2emase', options_metavar='<options>', short_help='convert an EC file to EMASE')
-@click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False))
-@click.argument('emase_file', metavar='emase_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
-@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def ec2emase(ec_file, emase_file, verbose):
-    """
-    Convert an EC file (ec_file) to an EMASE file (emase_file).
-    """
-    utils.configure_logging(verbose)
-    methods.ec2emase(ec_file, emase_file)
-
-
 @cli.command('range', options_metavar='<options>', short_help='test')
 @click.argument('input', nargs=-1, type=click.Path(resolve_path=True, dir_okay=True))
 @click.argument('range_file', metavar='range_file', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True))
@@ -196,19 +172,6 @@ def v(db_file, port, verbose):
     """
     utils.configure_logging(verbose)
     viewer.start(db_file, port)
-
-
-@cli.command('fastqtest', options_metavar='<options>', short_help='test')
-@click.argument('input', metavar='input', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
-@click.option('-c', '--chunks', default=0, help="number of chunks to process")
-@click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
-@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
-def fastqtest(input, chunks, directory, verbose):
-    """
-    Create range file for specified FASTq files
-    """
-    utils.configure_logging(verbose)
-    methods.parsefastqtest(input, chunks, directory)
 
 
 @cli.command('dumpec', options_metavar='<options>', short_help='dumpe file information')
@@ -265,6 +228,18 @@ def merge(input, directory, output, verbose):
 
     #print(input_files)
     bin_utils.combine(input_files, output)
+
+
+@cli.command('ec2emase', options_metavar='<options>', short_help='convert ec file to APM')
+@click.argument('ec_file', metavar='ec_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.argument('apm_file', metavar='apm_file', type=click.Path(resolve_path=True, dir_okay=False))
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def emase2db(ec_file, apm_file, verbose):
+    """
+    Generate database file for viewer
+    """
+    utils.configure_logging(verbose)
+    methods.ec2apm(ec_file, apm_file)
 
 
 if __name__ == '__main__':

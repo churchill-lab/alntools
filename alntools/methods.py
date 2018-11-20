@@ -15,9 +15,11 @@ from scipy.sparse import coo_matrix, diags
 
 from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 from . import bam_utils
-from . import db_utils
 from . import bam_utils_multisample
 from . import barcode_utils
+from . import bin_file
+from . import bin_utils
+from . import db_utils
 from . import utils
 
 LOG = utils.get_logger()
@@ -26,223 +28,6 @@ try:
     xrange
 except NameError:
     xrange = range
-
-
-class EMASE:
-    def __init__(self, filename=None):
-        self.filename = filename
-
-        self.target_list = []
-        self.target_dict = OrderedDict()
-
-        self.haplotypes_list = []
-        self.haplotypes_dict = OrderedDict()
-
-        # Version 0
-
-        self.reads_list = []
-        self.reads_dict = OrderedDict()
-
-        # Version 1
-
-        self.ec_list = []
-        self.ec_counts_list = []
-
-        self.alignments = []
-
-
-def parse_emase(emase_filename):
-    """
-    Parse EMASE file.
-
-    :param emase_filename: Name of the EMASE file
-    :return: EMASE class
-    """
-    if not emase_filename:
-        raise ValueError("empty file name, cannot load")
-
-    em = EMASE(emase_filename)
-
-    LOG.debug("Creating EMASE APM")
-
-    apm = APM(h5file=emase_filename)
-
-    LOG.debug("EMASE APM created")
-
-    em.target_list = list(apm.lname)
-    em.target_dict = {target: idx for idx, target in enumerate(em.target_list)}
-
-    em.haplotypes_list = apm.hname
-    em.haplotypes_dict = {hap: idx for idx, hap in enumerate(em.haplotypes_list)}
-
-    if apm.rname is None:
-        em.ec_list = np.arange(apm.num_reads)
-    else:
-        em.ec_list = list(apm.rname)
-    em.ec_counts_list = list(apm.count)
-
-    LOG.debug('Adding {:,} elements'.format(len(em.ec_list)))
-
-    for ec_idx, ec in enumerate(em.ec_list):
-        for target, target_idx in em.target_dict.iteritems():
-            #LOG.debug('ec_idx = {}, target = {}'.format(ec_idx, target))
-            bits = []
-
-            for hap, hap_idx in em.haplotypes_dict.iteritems():
-                bits.append(apm.data[hap_idx][ec_idx, target_idx])
-
-
-            em.alignments.append((ec_idx, target_idx, utils.list_to_int(bits)))
-
-    LOG.debug("EMASE file parsed")
-
-    return em
-
-
-def emase2ec(emase_filename, ec_filename):
-    """
-    Convert the EMASE file to an EC file.
-
-    :param emase_filename: name of the EMASE file
-    :param ec_filename: name of the EC file, version 1
-    :return:
-    """
-    start_time = time.time()
-
-    LOG.info('Parsing Emase file: {}'.format(emase_filename))
-    temp_time = time.time()
-    emase_data = parse_emase(emase_filename)
-
-    LOG.info("Emase file parsed in {}, total time: {}".format(emase_filename,
-                                                              utils.format_time(temp_time, time.time()),
-                                                              utils.format_time(start_time, time.time())))
-
-    try:
-        LOG.info("Generating EC file...")
-
-        f = open(ec_filename, "wb")
-
-        # version
-        f.write(pack('<i', 1))
-        LOG.debug("1\t# VERSION")
-
-        # targets
-        LOG.info("{:,}\t# NUMBER OF TARGETS".format(len(emase_data.target_list)))
-        f.write(pack('<i', len(emase_data.target_list)))
-        for main_target, idx in emase_data.target_dict.iteritems():
-            LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-            f.write(pack('<i', len(main_target)))
-            f.write(pack('<{}s'.format(len(main_target)), main_target))
-
-        # haplotypes
-        LOG.info("{:,}\t# NUMBER OF HAPLOTYPES".format(len(emase_data.haplotypes_list)))
-        f.write(pack('<i', len(emase_data.haplotypes_list)))
-        for idx, hap in enumerate(emase_data.haplotypes_list):
-            LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
-            f.write(pack('<i', len(hap)))
-            f.write(pack('<{}s'.format(len(hap)), hap))
-
-        # equivalence classes
-        LOG.info("{:,}\t# NUMBER OF EQUIVALANCE CLASSES".format(len(emase_data.ec_list)))
-        f.write(pack('<i', len(emase_data.ec_list)))
-        for idx, k in enumerate(emase_data.ec_counts_list):
-            # k is the count
-            LOG.debug("{:,}\t# {:,}".format(k, idx))
-            f.write(pack('<i', k))
-
-        LOG.info("Determining mappings...")
-
-        # equivalence class mappings
-        LOG.info("{:,}\t# NUMBER OF EQUIVALANCE CLASS MAPPINGS".format(len(emase_data.alignments)))
-        f.write(pack('<i', len(emase_data.alignments)))
-
-        for idx, alignment in enumerate(emase_data.alignments):
-            LOG.debug("{}\t{}\t{}\t# {}\t{}".format(alignment[0], alignment[1], alignment[2], emase_data.target_list[alignment[1]], utils.int_to_list(alignment[2], len(emase_data.haplotypes_list))))
-            f.write(pack('<i', alignment[0]))
-            f.write(pack('<i', alignment[1]))
-            f.write(pack('<i', alignment[2]))
-
-        f.close()
-    except Exception as e:
-        LOG.error("Error: {}".format(str(e)))
-
-
-def ec2emase(file_in, file_out):
-    """
-
-    :param file_in:
-    :param file_out:
-    :return:
-    """
-    start_time = time.time()
-
-    LOG.info('Parsing EC file: {}'.format(file_in))
-    temp_time = time.time()
-    ec = parse_ec(file_in)
-
-    LOG.info("EC parsed in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                        utils.format_time(start_time, time.time())))
-
-    new_shape = (len(ec.targets_list), len(ec.haplotypes_list), len(ec.ec_list))
-
-    LOG.info('Constructing APM structure...')
-    LOG.debug('Shape={}'.format(new_shape))
-
-    apm = APM(shape=new_shape, haplotype_names=ec.haplotypes_list, locus_names=ec.targets_list, read_names=ec.ec_list)
-
-    #LOG.debug('ec.haplotypes_list={}'.format(str(ec.haplotypes_list)))
-    #LOG.debug('ec.targets_list[0:10]={}'.format(str(ec.targets_list[0:10])))
-    #LOG.debug('ec.ec_list[0:10]={}'.format(str(ec.ec_list[0:10])))
-
-    temp_time = time.time()
-
-    # counts -> the number of times this equivalence class has appeared
-    apm.count = ec.ec_counts_list
-
-    num_haplotypes = len(ec.haplotypes_list)
-    ec_arr = [[] for _ in xrange(0, num_haplotypes)]
-    target_arr = [[] for _ in xrange(0, num_haplotypes)]
-
-    try:
-
-        for alignment in ec.alignments:
-            # LOG.debug(str(alignment))
-            ec_index = alignment[0]
-            target_index = alignment[1]
-            temp_bits = alignment[2]
-
-            if temp_bits == 0:
-                continue
-
-            bits = utils.int_to_list(temp_bits, num_haplotypes)
-            for i, bit in enumerate(bits):
-                if bit:
-                    # lid, hid, rid, value
-                    #apm.set_value(target_index, i, ec_index, 1)
-                    ec_arr[i].append(ec_index)
-                    target_arr[i].append(target_index)
-
-        for h in xrange(0, num_haplotypes):
-            d = np.ones(len(ec_arr[h]))
-            apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(ec.ec_list), len(ec.targets_list)))
-
-    except Exception as e:
-        LOG.error('Error: {}'.format(str(e)))
-
-    LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                        utils.format_time(start_time, time.time())))
-
-    temp_time = time.time()
-    LOG.info("Flushing to disk...")
-    apm.finalize()
-    apm.save(file_out, title='bam2ec')
-    LOG.info("{} created in {}, total time: {}".format(file_out,
-                                                   utils.format_time(temp_time, time.time()),
-                                                   utils.format_time(start_time, time.time())))
-
-
-def dumpec(ec_filename, detail=False):
-    parse_ec(ec_filename, detail)
 
 
 def bam2ec(bam_filename, ec_filename, chunks=0, directory=None, number_processes=-1, range_filename=None, sample=None):
@@ -395,9 +180,16 @@ def emase2db(sample_file, gene_file, db_file):
     LOG.info("Database created in {}".format(utils.format_time(start_time, time.time())))
 
 
-
 def parsefastqtest(input_file, chunks, dir):
     start_time = time.time()
     LOG.info('Using fastq file: {}'.format(input_file))
     barcode_utils.parse(input_file, chunks, dir)
     LOG.info("FAstq file parsed in {}".format(utils.format_time(start_time, time.time())))
+
+
+def dumpec(ec_file):
+    ECF = bin_file.ECFile(ec_file)
+
+
+def ec2apm(ec_file, apm_file):
+    bin_utils.bin2apm(ec_file, apm_file)

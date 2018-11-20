@@ -545,3 +545,85 @@ def combine(ec_files, ec_out):
     except KeyboardInterrupt as e:
         LOG.error("Error: {}".format(str(e)))
 
+
+
+def bin2apm(bin_filename, apm_filename):
+    try:
+        start_time = time.time()
+        temp_time = time.time()
+
+        ECF = bin_file.ECFile(bin_filename)
+
+        LOG.info('Constructing APM structure...')
+
+        num_haplotypes = len(ECF.haplotypes_idx)
+
+        new_shape = (len(ECF.targets_idx),
+                     num_haplotypes,
+                     ECF.a_matrix.shape[0])
+
+        LOG.debug('Shape={}'.format(new_shape))
+
+        # final.ec.values -> the number of times this equivalence class has appeared
+
+        ec_ids = [x for x in xrange(0, ECF.a_matrix.shape[0])]
+        ec_arr = [[] for _ in xrange(0, num_haplotypes)]
+        target_arr = [[] for _ in xrange(0, num_haplotypes)]
+
+        for idx in xrange(ECF.a_matrix.shape[0]):
+            # get the row values
+            a_row = ECF.a_matrix.getrow(idx)
+
+            # only need the columns (targets) that have values
+            a_col = list(a_row.nonzero()[1])
+
+            if num_haplotypes == 1:
+                # no need to decode
+                #print 'no decoding'
+                ec_arr[0].extend([idx] * a_row.nnz)
+                target_arr[0].extend(a_col)
+            else:
+                #print 'decoding'
+                for x in a_col:
+                    hap_values = utils.int_to_list(a_col[x], num_haplotypes)
+
+                    for i, h in enumerate(hap_values):
+                        if h != 0:
+                            ec_arr[i].append(idx)
+                            target_arr[i].append(a_row[0, x])
+
+        apm = APM(shape=new_shape,
+                  haplotype_names=ECF.haplotypes_idx,
+                  locus_names=ECF.targets_idx,
+                  read_names=ec_ids,
+                  sample_names=ECF.samples_idx)
+
+        for h in xrange(0, num_haplotypes):
+            #print h, len(ec_arr[h]), len(ec_ids), len(ECF.targets_idx)
+            d = np.ones(len(ec_arr[h]), dtype=np.int32)
+            apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(ec_ids), len(ECF.targets_idx)))
+
+        apm.count = ECF.n_matrix
+
+        LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                            utils.format_time(start_time, time.time())))
+
+        LOG.info("Flushing to disk...")
+
+        try:
+            os.remove(apm_filename)
+        except OSError:
+            pass
+
+        temp_time = time.time()
+        apm.finalize()
+        apm.save(apm_filename, title='Multisample APM', incidence_only=False)
+        LOG.info("{} created in {}, total time: {}".format(apm_filename,
+                                                           utils.format_time(temp_time, time.time()),
+                                                           utils.format_time(start_time, time.time())))
+
+
+
+
+    except KeyboardInterrupt as e:
+        LOG.error("Error: {}".format(str(e)))
