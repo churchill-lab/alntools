@@ -29,147 +29,6 @@ except NameError:
     xrange = range
 
 
-class EMASE:
-    def __init__(self, filename=None):
-        self.filename = filename
-
-
-
-        self.target_list = []
-        self.target_dict = OrderedDict()
-
-        self.haplotypes_list = []
-        self.haplotypes_dict = OrderedDict()
-
-        # Version 0
-
-        self.reads_list = []
-        self.reads_dict = OrderedDict()
-
-        # Version 1
-
-        self.ec_list = []
-        self.ec_counts_list = []
-
-        self.alignments = []
-
-
-def parse_emase(emase_filename):
-    """
-    Parse EMASE file.
-
-    :param emase_filename: Name of the EMASE file
-    :return: EMASE class
-    """
-    if not emase_filename:
-        raise ValueError("empty file name, cannot load")
-
-    em = EMASE(emase_filename)
-
-    LOG.debug("Creating EMASE APM")
-
-    apm = APM(h5file=emase_filename)
-
-    LOG.debug("EMASE APM created")
-
-    em.target_list = list(apm.lname)
-    em.target_dict = {target: idx for idx, target in enumerate(em.target_list)}
-
-    em.haplotypes_list = apm.hname
-    em.haplotypes_dict = {hap: idx for idx, hap in enumerate(em.haplotypes_list)}
-
-    if apm.rname is None:
-        em.ec_list = np.arange(apm.num_reads)
-    else:
-        em.ec_list = list(apm.rname)
-    em.ec_counts_list = list(apm.count)
-
-    LOG.debug('Adding {:,} elements'.format(len(em.ec_list)))
-
-    for ec_idx, ec in enumerate(em.ec_list):
-        for target, target_idx in em.target_dict.iteritems():
-            #LOG.debug('ec_idx = {}, target = {}'.format(ec_idx, target))
-            bits = []
-
-            for hap, hap_idx in em.haplotypes_dict.iteritems():
-                bits.append(apm.data[hap_idx][ec_idx, target_idx])
-
-
-            em.alignments.append((ec_idx, target_idx, utils.list_to_int(bits)))
-
-    LOG.debug("EMASE file parsed")
-
-    return em
-
-
-def emase2ec(emase_filename, ec_filename):
-    """
-    Convert the EMASE file to an EC file.
-
-    :param emase_filename: name of the EMASE file
-    :param ec_filename: name of the EC file, version 1
-    :return:
-    """
-    start_time = time.time()
-
-    LOG.info('Parsing Emase file: {}'.format(emase_filename))
-    temp_time = time.time()
-    emase_data = parse_emase(emase_filename)
-
-    LOG.info("Emase file parsed in {}, total time: {}".format(emase_filename,
-                                                              utils.format_time(temp_time, time.time()),
-                                                              utils.format_time(start_time, time.time())))
-
-    try:
-        LOG.info("Generating EC file...")
-
-        f = open(ec_filename, "wb")
-
-        # version
-        f.write(pack('<i', 1))
-        LOG.debug("1\t# VERSION")
-
-        # targets
-        LOG.info("{:,}\t# NUMBER OF TARGETS".format(len(emase_data.target_list)))
-        f.write(pack('<i', len(emase_data.target_list)))
-        for main_target, idx in emase_data.target_dict.iteritems():
-            LOG.debug("{:,}\t{}\t# {:,}".format(len(main_target), main_target, idx))
-            f.write(pack('<i', len(main_target)))
-            f.write(pack('<{}s'.format(len(main_target)), main_target))
-
-        # haplotypes
-        LOG.info("{:,}\t# NUMBER OF HAPLOTYPES".format(len(emase_data.haplotypes_list)))
-        f.write(pack('<i', len(emase_data.haplotypes_list)))
-        for idx, hap in enumerate(emase_data.haplotypes_list):
-            LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
-            f.write(pack('<i', len(hap)))
-            f.write(pack('<{}s'.format(len(hap)), hap))
-
-        # equivalence classes
-        LOG.info("{:,}\t# NUMBER OF EQUIVALANCE CLASSES".format(len(emase_data.ec_list)))
-        f.write(pack('<i', len(emase_data.ec_list)))
-        for idx, k in enumerate(emase_data.ec_counts_list):
-            # k is the count
-            LOG.debug("{:,}\t# {:,}".format(k, idx))
-            f.write(pack('<i', k))
-
-        LOG.info("Determining mappings...")
-
-        # equivalence class mappings
-        LOG.info("{:,}\t# NUMBER OF EQUIVALANCE CLASS MAPPINGS".format(len(emase_data.alignments)))
-        f.write(pack('<i', len(emase_data.alignments)))
-
-        for idx, alignment in enumerate(emase_data.alignments):
-            LOG.debug("{}\t{}\t{}\t# {}\t{}".format(alignment[0], alignment[1], alignment[2], emase_data.target_list[alignment[1]], utils.int_to_list(alignment[2], len(emase_data.haplotypes_list))))
-            f.write(pack('<i', alignment[0]))
-            f.write(pack('<i', alignment[1]))
-            f.write(pack('<i', alignment[2]))
-
-        f.close()
-    except Exception as e:
-        LOG.error("Error: {}".format(str(e)))
-
-
 class ECFile:
     def __init__(self, filename=None):
         self.filename = filename
@@ -543,51 +402,6 @@ class ECFile:
                 LOG.info("All data parsed in: {}".format(
                         utils.format_time(start_time, time.time())))
 
-    def get_samples(self):
-        pass
-
-    def get_ec_dict(self):
-        start_time = time.time()
-        ecs = OrderedDict()
-        for idx in xrange(len(self.a_matrix.indptr) - 1):
-            ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
-            #ec_key = self.a_matrix.getrow(idx).nonzero()[1]
-            ecs[ec_key] = len(ecs)
-        LOG.info("dict: {}".format(
-                utils.format_time(start_time, time.time())))
-
-    def get_ec_dict2(self):
-        start_time = time.time()
-        ecs = {}
-        for idx in xrange(len(self.a_matrix.indptr) - 1):
-            ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
-            #ec_key = self.a_matrix.getrow(idx).nonzero()[1]
-            ecs[ec_key] = len(ecs)
-        LOG.info("dict: {}".format(
-                utils.format_time(start_time, time.time())))
-
-    def get_ec_dict3(self):
-        start_time = time.time()
-        ecs = OrderedDict()
-        for idx in xrange(len(self.a_matrix.indptr) - 1):
-            #ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
-            ec_key = tuple(self.a_matrix.getrow(idx).nonzero()[1].tolist())
-            ecs[ec_key] = len(ecs)
-        LOG.info("dict: {}".format(
-                utils.format_time(start_time, time.time())))
-
-    def get_ec_dict4(self):
-        start_time = time.time()
-        ecs = {}
-        for idx in xrange(len(self.a_matrix.indptr) - 1):
-            #ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
-            ec_key = tuple(self.a_matrix.getrow(idx).nonzero()[1].tolist())
-            ecs[ec_key] = len(ecs)
-        LOG.info("dict: {}".format(
-                utils.format_time(start_time, time.time())))
-
-
-
     def get_ec_crs_dict(self):
         start_time = time.time()
         ecs = OrderedDict()
@@ -597,3 +411,66 @@ class ECFile:
             ecs[ec_key] = len(ecs)
         LOG.info("dict: {}".format(
                 utils.format_time(start_time, time.time())))
+
+
+    def toAPM(self):
+        try:
+            start_time = time.time()
+            temp_time = time.time()
+
+            num_haplotypes = len(self.haplotypes_idx)
+
+            new_shape = (len(self.targets_idx),
+                         num_haplotypes,
+                         self.a_matrix.shape[0])
+
+            LOG.debug('Shape={}'.format(new_shape))
+
+            # final.ec.values -> the number of times this equivalence class has appeared
+
+            ec_ids = [x for x in xrange(0, self.a_matrix.shape[0])]
+            ec_arr = [[] for _ in xrange(0, num_haplotypes)]
+            target_arr = [[] for _ in xrange(0, num_haplotypes)]
+
+            for idx in xrange(self.a_matrix.shape[0]):
+                # get the row values
+                a_row = self.a_matrix.getrow(idx)
+
+                # only need the columns (targets) that have values
+                a_col = list(a_row.nonzero()[1])
+
+                if num_haplotypes == 1:
+                    # no need to decode
+                    # print 'no decoding'
+                    ec_arr[0].extend([idx] * a_row.nnz)
+                    target_arr[0].extend(a_col)
+                else:
+                    # print 'decoding'
+                    for x in a_col:
+                        hap_values = utils.int_to_list(a_col[x], num_haplotypes)
+
+                        for i, h in enumerate(hap_values):
+                            if h != 0:
+                                ec_arr[i].append(idx)
+                                target_arr[i].append(a_row[0, x])
+
+            apm = APM(shape=new_shape,
+                      haplotype_names=self.haplotypes_idx,
+                      locus_names=self.targets_idx,
+                      read_names=ec_ids,
+                      sample_names=self.samples_idx)
+
+            for h in xrange(0, num_haplotypes):
+                # print h, len(ec_arr[h]), len(ec_ids), len(ECF.targets_idx)
+                d = np.ones(len(ec_arr[h]), dtype=np.int32)
+                apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(ec_ids), len(self.targets_idx)))
+
+            apm.count = self.n_matrix
+
+            LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+                                                                utils.format_time(start_time, time.time())))
+
+            return apm
+
+        except Exception as e:
+            LOG.error("Error: {}".format(str(e)))
