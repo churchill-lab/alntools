@@ -10,6 +10,8 @@ import re
 import tempfile
 import time
 
+from six import iteritems
+
 import numpy as np
 
 from scipy.sparse import coo_matrix, diags, csr_matrix, csc_matrix
@@ -411,6 +413,169 @@ class ECFile:
             ecs[ec_key] = len(ecs)
         LOG.info("dict: {}".format(
                 utils.format_time(start_time, time.time())))
+
+    def save(self, filename=None):
+        start_time = time.time()
+
+        if filename is None and self.filename is None:
+            raise ValueError('No filename specified')
+
+        if filename:
+            self.filename = filename
+
+        LOG.info('Saving file {}'.format(self.filename))
+
+        try:
+            os.remove(self.filename)
+        except:
+            pass
+
+        with gzip.open(self.filename, 'wb') as f:
+            # FORMAT
+            f.write(pack('<i', self.format))
+            LOG.info("FORMAT: {}".format(self.format))
+
+            #
+            # SECTION: HAPLOTYPES
+            #     [# of HAPLOTYPES = H]
+            #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
+            #     ...
+            #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
+            #
+            # Example:
+            #     8
+            #     1 A
+            #     1 B
+            #     1 C
+            #     1 D
+            #     1 E
+            #     1 F
+            #     1 G
+            #     1 H
+            #
+
+            LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(self.haplotypes_idx)))
+            f.write(pack('<i', len(self.haplotypes_idx)))
+            for idx, hap in enumerate(self.haplotypes_idx):
+                # LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+                f.write(pack('<i', len(hap)))
+                f.write(pack('<{}s'.format(len(hap)), hap))
+
+            #
+            # SECTION: TARGETS
+            #     [# of TARGETS = T]
+            #     [length TARGET 1 text][TARGET 1 text][HAP 1 length] ... [HAP H length]
+            #     ...
+            #     [length TARGET T text][TARGET T text][HAP 1 length] ... [HAP H length]
+            #
+            # Example:
+            #     80000
+            #     18 ENSMUST00000156068 234
+            #     18 ENSMUST00000209341 1054
+            #     ...
+            #     18 ENSMUST00000778019 1900
+            #
+
+            LOG.info("NUMBER OF TARGETS: {:,}".format(len(self.targets_idx)))
+            f.write(pack('<i', len(self.targets_idx)))
+            for idx, target in enumerate(self.targets_idx):
+                f.write(pack('<i', len(target)))
+                f.write(pack('<{}s'.format(len(target)), target))
+
+                for (key_l, val_l) in iteritems(self.targets_lengths[target]):
+                    f.write(pack('<i', val_l))
+                    #lengths.append(str(length))
+
+                #LOG.debug("#{:,} --> {:,}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
+
+            #
+            # SECTION: CRS
+            #     [# of CRS = C]
+            #     [length of CR 1 text][CR 1 text]
+            #     ...
+            #     [length of CR C text][CR C text]
+            #
+            # Example:
+            #     3
+            #     16 TCGGTAAAGCCGTCGT
+            #     16 GGAACTTAGCCGATTT
+            #     16 TAGTGGTAGAGGTAGA
+            #
+
+            LOG.info("SAMPLES: {:,}".format(len(self.samples_idx)))
+            f.write(pack('<i', len(self.samples_idx)))
+            for idx, sample in enumerate(self.samples_idx):
+                #LOG.debug("{:,}\t{}\t# {:,}".format(len(sample), sample, idx))
+                f.write(pack('<i', len(sample)))
+                f.write(pack('<{}s'.format(len(sample)), sample))
+
+            #
+            # SECTION: "A" Matrix
+            #
+            # "A" Matrix format is EC (rows) by Transcripts (columns) with
+            # each value being the HAPLOTYPE flag.
+            #
+            # Instead of storing a "dense" matrix, we store a "sparse"
+            # matrix utilizing Compressed Sparse Row (CSR) format.
+            #
+            # NOTE:
+            #     HAPLOTYPE flag is an integer that denotes which haplotype
+            #     (allele) a read aligns to given an EC. For example, 00,
+            #     01, 10, and 11 can specify whether a read aligns to the
+            #     1st and/or 2nd haplotype of a transcript.  These binary
+            #     numbers are converted to integers - 0, 1, 2, 3 - and
+            #     stored as the haplotype flag.
+            #
+
+            LOG.info("A MATRIX: INDPTR LENGTH {:,}".format(len(self.a_matrix.indptr)))
+            f.write(pack('<i', len(self.a_matrix.indptr)))
+
+            # NON ZEROS
+            LOG.info("A MATRIX: NUMBER OF NON ZERO: {:,}".format(self.a_matrix.nnz))
+            f.write(pack('<i', self.a_matrix.nnz))
+
+            # ROW OFFSETS
+            LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(self.a_matrix.indptr)))
+            f.write(pack('<{}i'.format(len(self.a_matrix.indptr)), *self.a_matrix.indptr))
+
+            # COLUMNS
+            LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(self.a_matrix.indices)))
+            f.write(pack('<{}i'.format(len(self.a_matrix.indices)), *self.a_matrix.indices))
+
+            # DATA
+            LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(self.a_matrix.data)))
+            f.write(pack('<{}i'.format(len(self.a_matrix.data)), *self.a_matrix.data))
+
+            #
+            # SECTION: "N" Matrix
+            #
+            # "N" Matrix format is EC (rows) by CRS (columns) with
+            # each value being the EC count.
+            #
+            # Instead of storing a "dense" matrix, we store a "sparse"
+            # matrix utilizing Compressed Sparse Column (CSC) format.
+            #
+
+            LOG.info("N MATRIX: INDPTR LENGTH {:,}".format(len(self.n_matrix.indptr)))
+            f.write(pack('<i', len(self.n_matrix.indptr)))
+
+            # NON ZEROS
+            LOG.info("N MATRIX: NUMBER OF NON ZERO: {:,}".format(self.n_matrix.nnz))
+            f.write(pack('<i', self.n_matrix.nnz))
+
+            # ROW OFFSETS
+            LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(self.n_matrix.indptr)))
+            f.write(pack('<{}i'.format(len(self.n_matrix.indptr)), *self.n_matrix.indptr))
+
+            # COLUMNS
+            LOG.info("N MATRIX: LENGTH INDICES: {:,}".format(len(self.n_matrix.indices)))
+            f.write(pack('<{}i'.format(len(self.n_matrix.indices)), *self.n_matrix.indices))
+
+            # DATA
+            LOG.info("N MATRIX: LENGTH DATA: {:,}".format(len(self.n_matrix.data)))
+            f.write(pack('<{}i'.format(len(self.n_matrix.data)), *self.n_matrix.data))
+
+        LOG.info("{} created in {}".format(self.filename, utils.format_time(start_time, time.time())))
 
 
     def toAPM(self):
