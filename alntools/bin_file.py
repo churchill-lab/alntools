@@ -429,41 +429,6 @@ class ECFile:
             # final.ec.values -> the number of times this equivalence class has appeared
 
             ec_ids = [x for x in xrange(0, self.a_matrix.shape[0])]
-            ec_arr = [[] for _ in xrange(0, num_haplotypes)]
-            target_arr = [[] for _ in xrange(0, num_haplotypes)]
-
-            for idx in xrange(self.a_matrix.shape[0]):
-                # get the row values
-                a_row = self.a_matrix.getrow(idx)
-
-                # only need the columns (targets) that have values
-                a_col = list(a_row.nonzero()[1])
-
-                #print a_row
-                #print a_col
-
-                if num_haplotypes == 1:
-                    # no need to decode
-                    # print 'no decoding'
-                    ec_arr[0].extend([idx] * a_row.nnz)
-                    target_arr[0].extend(a_col)
-                else:
-                    #print 'decoding'
-                    for x in a_col:
-                        #print x
-                        hap_values = utils.int_to_list(a_row[0, x], num_haplotypes)
-                        #print hap_values
-
-                        for i, h in enumerate(hap_values):
-                            if h != 0:
-                                ec_arr[i].append(idx)
-                                target_arr[i].append(x)
-
-
-
-            #for h in xrange(0, num_haplotypes):
-            #    print h, len(ec_arr[h]), len(ec_ids), len(ECF.targets_idx)
-
 
             apm = APM(shape=new_shape,
                       haplotype_names=self.haplotypes_idx,
@@ -471,9 +436,29 @@ class ECFile:
                       read_names=ec_ids,
                       sample_names=self.samples_idx)
 
+            # make a copy, decode the bits, set correct values
+            LOG.debug('Making copies for APM data...')
+
             for h in xrange(0, num_haplotypes):
-                d = np.ones(len(ec_arr[h]), dtype=np.int32)
-                apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(ec_ids), len(self.targets_idx)))
+                apm.data[h] = self.a_matrix.copy()
+
+            LOG.debug('Setting values...')
+
+            if num_haplotypes != 1:
+                for idx, val in enumerate(self.a_matrix.data):
+
+                    if idx % 100000 == 0:
+                        LOG.debug('{:,} out of {:,}'.format(idx, len(self.a_matrix.data)))
+
+                    hap_values = utils.int_to_list(val, num_haplotypes)
+                    #print hap_values
+                    for i, h in enumerate(hap_values):
+                        apm.data[i].data[idx] = h
+
+            LOG.debug('Eliminating zeros...')
+
+            for h in xrange(0, num_haplotypes):
+                apm.data[h].eliminate_zeros()
 
             apm.count = self.n_matrix
 
