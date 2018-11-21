@@ -439,20 +439,31 @@ class ECFile:
                 # only need the columns (targets) that have values
                 a_col = list(a_row.nonzero()[1])
 
+                #print a_row
+                #print a_col
+
                 if num_haplotypes == 1:
                     # no need to decode
                     # print 'no decoding'
                     ec_arr[0].extend([idx] * a_row.nnz)
                     target_arr[0].extend(a_col)
                 else:
-                    # print 'decoding'
+                    #print 'decoding'
                     for x in a_col:
-                        hap_values = utils.int_to_list(a_col[x], num_haplotypes)
+                        #print x
+                        hap_values = utils.int_to_list(a_row[0, x], num_haplotypes)
+                        #print hap_values
 
                         for i, h in enumerate(hap_values):
                             if h != 0:
                                 ec_arr[i].append(idx)
-                                target_arr[i].append(a_row[0, x])
+                                target_arr[i].append(x)
+
+
+
+            #for h in xrange(0, num_haplotypes):
+            #    print h, len(ec_arr[h]), len(ec_ids), len(ECF.targets_idx)
+
 
             apm = APM(shape=new_shape,
                       haplotype_names=self.haplotypes_idx,
@@ -461,7 +472,6 @@ class ECFile:
                       sample_names=self.samples_idx)
 
             for h in xrange(0, num_haplotypes):
-                # print h, len(ec_arr[h]), len(ec_ids), len(ECF.targets_idx)
                 d = np.ones(len(ec_arr[h]), dtype=np.int32)
                 apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(ec_ids), len(self.targets_idx)))
 
@@ -472,5 +482,5 @@ class ECFile:
 
             return apm
 
-        except Exception as e:
-            LOG.error("Error: {}".format(str(e)))
+        except KeyboardInterrupt as e:
+            LOG.error("toAPM Error: {}".format(str(e)))
