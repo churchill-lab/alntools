@@ -3,16 +3,14 @@ from collections import OrderedDict, namedtuple, defaultdict
 from struct import pack
 
 import glob
-import gzip
-import io
 import multiprocessing
 import os
-import struct
 import sys
 import time
 
-from Bio import bgzf
-from scipy.sparse import coo_matrix, lil_matrix, dok_matrix, csr_matrix
+from six import iteritems
+
+from scipy.sparse import coo_matrix, lil_matrix, csr_matrix
 
 import numpy as np
 import pysam
@@ -166,7 +164,7 @@ def validate_bam(filename):
 
 
 def ddict2dict(d):
-    for k, v in d.items():
+    for (k, v) in iteritems(d):
         if isinstance(v, dict):
             d[k] = ddict2dict(v)
     return dict(d)
@@ -500,10 +498,10 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
             CRS = OrderedDict()
             new_ecs = OrderedDict()
 
-            for eckey, crdict in final.ec.iteritems():
+            for (eckey, crdict) in iteritems(final.ec):
                 new_ecs[eckey] = crdict
                 ec_idx[eckey] = len(ec_idx)
-                for crkey, count in crdict.iteritems():
+                for (crkey, count) in iteritems(crdict):
                     if crkey not in CRS:
                         CRS[crkey] = len(CRS)
 
@@ -523,8 +521,8 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
             # combine ec and URS
             LOG.debug("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
 
-            for eckey, crdict in result.ec.iteritems():
-                for crkey, count in crdict.iteritems():
+            for (eckey, crdict) in iteritems(result.ec):
+                for (crkey, count) in iteritems(crdict):
                     CRS[crkey] = 1
 
                     if crkey not in CRS:
@@ -557,7 +555,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
             if range_filename:
                 # tid_stats
-                for k, v in result.tid_ranges.iteritems():
+                for (k, v) in iteritems(result.tid_ranges):
                     if k in final.tid_ranges:
                         n = final.tid_ranges[k][0]
                         x = final.tid_ranges[k][1]
@@ -589,7 +587,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
     # find the new CRS
     CRS = OrderedDict()
 
-    for CR, CR_total in cr_totals.iteritems():
+    for (CR, CR_total) in iteritems(cr_totals):
         if CR_total >= minimum_count:
             if CR not in CRS:
                 CRS[CR] = len(CRS)
@@ -599,13 +597,13 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
     new_ec_idx = {}
     new_ec_totals = {}
     # loop through ecs
-    for eckey, crs in final.ec.iteritems():
+    for (eckey, crs) in iteritems(final.ec):
         # potential new ec
 
         ec = {}
         total = 0
         # loop through valid CRS and and if valid
-        for crkey, crcount in crs.iteritems():
+        for (crkey, crcount) in iteritems(crs):
 
             if crkey in CRS:
                 ec[crkey] = crs[crkey]
@@ -685,7 +683,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
         # k = comma seperated string of tids
         # v = CRS and counts
-        for k, v in final.ec.iteritems():
+        for (k, v) in iteritems(final.ec):
             arr_target_idx = k.split(",")
 
             # get the main targets by name
@@ -813,7 +811,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            with gzip.open(ec_filename, 'wb') as f:
+            with open(ec_filename, 'wb') as f:
                 # FORMAT
                 f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")
@@ -861,7 +859,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
                 LOG.info("NUMBER OF TARGETS: {:,}".format(len(main_targets)))
                 f.write(pack('<i', len(main_targets)))
-                for main_target, idx in main_targets.iteritems():
+                for (main_target, idx) in iteritems(main_targets):
                     f.write(pack('<i', len(main_target)))
                     f.write(pack('<{}s'.format(len(main_target)), main_target))
 
@@ -890,7 +888,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
                 LOG.info("FILTERED CRS: {:,}".format(len(CRS)))
                 f.write(pack('<i', len(CRS)))
-                for CR, idx in CRS.iteritems():
+                for (CR, idx) in iteritems(CRS):
                     #LOG.debug("{:,}\t{}\t# {:,}".format(len(CR), CR, idx))
                     f.write(pack('<i', len(CR)))
                     f.write(pack('<{}s'.format(len(CR)), CR))
@@ -1127,9 +1125,9 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
             final.init = True
             CRS = OrderedDict()
 
-            for eckey, crdict in final.ec.iteritems():
+            for (eckey, crdict) in iteritems(final.ec):
                 ec_idx[eckey] = len(ec_idx)
-                for crkey, count in crdict.iteritems():
+                for (crkey, count) in iteritems(crdict):
                     CRS[crkey] = 1
 
                     if crkey not in CRS:
@@ -1150,8 +1148,8 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
             # combine ec and URS
             LOG.debug("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
 
-            for eckey, crdict in result.ec.iteritems():
-                for crkey, count in crdict.iteritems():
+            for (eckey, crdict) in iteritems(result.ec):
+                for (crkey, count) in iteritems(crdict):
                     CRS[crkey] = 1
 
                     if crkey not in CRS:
@@ -1186,7 +1184,7 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
 
             if range_filename:
                 # tid_stats
-                for k, v in result.tid_ranges.iteritems():
+                for (k, v) in iteritems(result.tid_ranges):
                     if k in final.tid_ranges:
                         n = final.tid_ranges[k][0]
                         x = final.tid_ranges[k][1]
@@ -1217,7 +1215,7 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
         # find the new CRS
         CRS = OrderedDict()
 
-        for CR, CR_total in cr_totals.iteritems():
+        for (CR, CR_total) in iteritems(cr_totals):
             if CR_total >= minimum_count and CR not in CRS:
                 CRS[CR] = len(CRS)
 
@@ -1227,14 +1225,14 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
         new_ec_totals = {}
 
         # loop through ecs
-        for eckey, crs in final.ec.iteritems():
+        for (eckey, crs) in iteritems(final.ec):
             # potential new ec
 
             ec = {}
             total = 0
 
             # loop through valid CRS and if valid, set it
-            for crkey, crcount in crs.iteritems():
+            for (crkey, crcount) in iteritems(crs):
                 if crkey in CRS:
                     ec[crkey] = crs[crkey]
                     total += crcount
@@ -1311,7 +1309,7 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
 
         # k = comma seperated string of tids
         # v = the count
-        for k, v in final.ec.iteritems():
+        for (k, v) in iteritems(final.ec):
             arr_target_idx = k.split(",")
 
             # get the main targets by name
@@ -1366,10 +1364,10 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
             npa = lil_matrix((len(final.ec), len(CRS)), dtype=np.int32)
             #npa = dok_matrix((len(final.ec), len(CRS)), dtype=np.int32)
             i = 0
-            for eckey, crs in final.ec.iteritems():
+            for (eckey, crs) in iteritems(final.ec):
                 # eckey = commas seperated list
                 # crs = dict of CRS and counts
-                for crskey, crscount in crs.iteritems():
+                for (crskey, crscount) in iteritems(crs):
                     npa[i, CRS[crskey]] = crscount
                 i += 1
 
@@ -1419,7 +1417,7 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            with gzip.open(ec_filename, 'wb') as f:
+            with open(ec_filename, 'wb') as f:
                 # FORMAT
                 f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")
@@ -1467,7 +1465,7 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
 
                 LOG.info("NUMBER OF TARGETS: {:,}".format(len(main_targets)))
                 f.write(pack('<i', len(main_targets)))
-                for main_target, idx in main_targets.iteritems():
+                for (main_target, idx) in iteritems(main_targets):
                     f.write(pack('<i', len(main_target)))
                     f.write(pack('<{}s'.format(len(main_target)), main_target))
 
@@ -1496,7 +1494,7 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
 
                 LOG.info("FILTERED CRS: {:,}".format(len(CRS)))
                 f.write(pack('<i', len(CRS)))
-                for CR, idx in CRS.iteritems():
+                for (CR, idx) in iteritems(CRS):
                     #LOG.debug("{:,}\t{}\t# {:,}".format(len(CR), CR, idx))
                     f.write(pack('<i', len(CR)))
                     f.write(pack('<{}s'.format(len(CR)), CR))
@@ -1587,12 +1585,12 @@ def convert2(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_co
                 data = []
 
                 i = 0
-                for eckey, crs in final.ec.iteritems():
+                for (eckey, crs) in iteritems(final.ec):
                     # eckey = commas seperated list
                     # crs = dict of CRS and counts
                     row = ec_idx[eckey]
                     a = 0
-                    for crskey, crscount in crs.iteritems():
+                    for (crskey, crscount) in iteritems(crs):
                         col = CRS[crskey]
                         indices.append(row)
                         data.append(crscount)

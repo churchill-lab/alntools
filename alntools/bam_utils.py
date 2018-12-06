@@ -1,15 +1,16 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict, namedtuple
 from struct import pack
-import gzip
 import multiprocessing
 import os
 import struct
 import sys
 import time
 
+from six import iteritems
+
 from Bio import bgzf
-from scipy.sparse import coo_matrix, csc_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csc_matrix
 
 import numpy as np
 import pysam
@@ -660,13 +661,13 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
             final.init = True
 
             # k = ec value, v = count
-            for k, v in final.ec.iteritems():
+            for (k, v) in iteritems(final.ec):
                 ec_idx[k] = len(ec_idx)
 
         else:
             # combine ec
             LOG.debug("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
-            for k, v in result.ec.iteritems():
+            for (k, v) in iteritems(result.ec):
                 if k in final.ec:
                     final.ec[k] += v
                 else:
@@ -676,7 +677,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
             # unique reads
             LOG.debug("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
-            for k, v in result.unique_reads.iteritems():
+            for (k, v) in iteritems(result.unique_reads):
                 if k in final.unique_reads:
                     final.unique_reads[k] += v
                 else:
@@ -688,7 +689,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
             if range_filename:
                 # tid_stats
-                for k, v in result.tid_ranges.iteritems():
+                for (k, v) in iteritems(result.tid_ranges):
                     if k in final.tid_ranges:
                         n = final.tid_ranges[k][0]
                         x = final.tid_ranges[k][1]
@@ -760,7 +761,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
         # k = comma seperated string of tids
         # v = the count
-        for k, v in final.ec.iteritems():
+        for (k, v) in iteritems(final.ec):
             arr_target_idx = k.split(",")
 
             # get the main targets by name
@@ -859,7 +860,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            with gzip.open(ec_filename, 'wb') as f:
+            with open(ec_filename, 'wb') as f:
                 # format
                 f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")
@@ -907,7 +908,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
                 LOG.info("NUMBER OF TARGETS: {:,}".format(len(main_targets)))
                 f.write(pack('<i', len(main_targets)))
-                for main_target, idx in main_targets.iteritems():
+                for (main_target, idx) in iteritems(main_targets):
                     f.write(pack('<i', len(main_target)))
                     f.write(pack('<{}s'.format(len(main_target)), main_target))
 
@@ -1449,7 +1450,7 @@ def generate_bam_ranges(input_files, range_filename, target_filename=None, temp_
                 raise ValueError('Error: haplotypes do not match')
 
             # tid_stats
-            for k, v in result.tid_ranges.iteritems():
+            for (k, v) in iteritems(result.tid_ranges):
                 if k in final.tid_ranges:
                     n = final.tid_ranges[k][0]
                     x = final.tid_ranges[k][1]

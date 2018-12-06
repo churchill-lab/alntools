@@ -1,20 +1,16 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict, namedtuple
-from struct import pack
+
 import multiprocessing
 import os
 import sqlite3
 import struct
-import sys
 import time
 from contextlib import closing
 from . import utils
 
 from Bio import bgzf
-from emase import AlignmentPropertyMatrix as APM
 import pysam
-from scipy.sparse import coo_matrix
-import numpy as np
 
 try:
     xrange
