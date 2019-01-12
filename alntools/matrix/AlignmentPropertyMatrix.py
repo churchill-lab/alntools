@@ -183,6 +183,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 grp_align.num_haplotypes = self.num_haplotypes
                 grp_align.num_reads = self.num_reads
                 grp_align.shape = (grp_align.num_loci, grp_align.num_haplotypes, grp_align.num_reads)
+                grp_align.count = self.count
                 if not shallow:
                     grp_align.lname = copy.copy(self.gname)
                     grp_align.hname = self.hname
