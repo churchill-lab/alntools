@@ -1,9 +1,7 @@
 # -*- coding: utf-8 -*-
-from collections import OrderedDict
-from struct import pack
+from six import iteritems
 
 import csv
-import gzip
 import os
 import re
 import tempfile
@@ -11,7 +9,7 @@ import time
 
 import numpy as np
 
-from scipy.sparse import coo_matrix, diags
+from scipy.sparse import diags
 
 from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 from . import bam_utils
@@ -88,7 +86,7 @@ def emase2db_config(sample_file, directory=None):
                     all_files[sample_name] = found_file
 
         with open(sample_file, "w") as out_fd:
-            for k, v in all_files.iteritems():
+            for (k, v) in iteritems(all_files):
                 LOG.debug("{}\t{}".format(k, v))
                 out_fd.write("{}\t{}\n".format(k, v))
 

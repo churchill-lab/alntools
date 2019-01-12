@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
-from future.utils import iteritems
+from six import iteritems
 from struct import pack
 
-import gzip
 import os
 import time
 
@@ -379,7 +378,7 @@ def combine(ec_files, ec_out):
             temp_time = time.time()
             LOG.info("Generating BIN file...")
 
-            with gzip.open(ec_out, 'wb') as f:
+            with open(ec_out, 'wb') as f:
                 # FORMAT
                 f.write(pack('<i', 2))
                 LOG.info("FORMAT: 2")

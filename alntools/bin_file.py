@@ -3,24 +3,16 @@ from collections import OrderedDict
 from struct import pack, unpack, calcsize
 from ntpath import basename
 
-import csv
-import gzip
 import os
-import re
-import tempfile
 import time
 
 from six import iteritems
 
 import numpy as np
 
-from scipy.sparse import coo_matrix, diags, csr_matrix, csc_matrix
+from scipy.sparse import csr_matrix, csc_matrix
 
 from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-from . import bam_utils
-from . import db_utils
-from . import bam_utils_multisample
-from . import barcode_utils
 from . import utils
 
 LOG = utils.get_logger()
@@ -111,7 +103,7 @@ class ECFile:
         start_time = time.time()
 
         # attempt to see if this is gzipped (version 2)
-        with gzip.open(self.filename, 'rb') as f:
+        with open(self.filename, 'rb') as f:
 
             self.format = unpack('<i', f.read(_i))[0]
 
@@ -198,7 +190,7 @@ class ECFile:
                 LOG.debug("{} {}".format(i, target))
 
                 hap_length = OrderedDict()
-                for haplotype, idx in self.haplotypes.iteritems():
+                for (haplotype, idx) in iteritems(self.haplotypes):
                     hap_length[haplotype] = unpack('<i', f.read(_i))[0]
 
                 self.targets_lengths[target] = hap_length
@@ -304,7 +296,7 @@ class ECFile:
                 LOG.error("A MATRIX INDPTR Length: {0:,}".format(indptr_length))
                 LOG.error("A MATRIX NNZ: {0:,}".format(nnz))
 
-                indptr = np.array(unpack('<{}i'.format(indptr_length), f.read(_i * indptr_length)), dtype=np.int32)
+                indptr = np.fromfile(f, count=indptr_length, dtype=np.int32)
 
                 LOG.info("indptr extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
@@ -312,7 +304,7 @@ class ECFile:
 
                 temp_time = time.time()
 
-                indices = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
+                indices = np.fromfile(f, count=nnz, dtype=np.int32)
 
                 LOG.info("indices extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
@@ -320,7 +312,7 @@ class ECFile:
 
                 temp_time = time.time()
 
-                data = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
+                data = np.fromfile(f, count=nnz, dtype=np.int32)
 
                 LOG.info("data extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
@@ -368,7 +360,7 @@ class ECFile:
                 LOG.error("N MATRIX INDPTR Length: {0:,}".format(indptr_length))
                 LOG.error("N MATRIX NNZ: {0:,}".format(nnz))
 
-                indptr = np.array(unpack('<{}i'.format(indptr_length), f.read(_i * indptr_length)), dtype=np.int32)
+                indptr = np.fromfile(f, count=indptr_length, dtype=np.int32)
 
                 LOG.info("indptr extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
@@ -376,7 +368,7 @@ class ECFile:
 
                 temp_time = time.time()
 
-                indices = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
+                indices = np.fromfile(f, count=nnz, dtype=np.int32)
 
                 LOG.info("indices extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
@@ -384,7 +376,7 @@ class ECFile:
 
                 temp_time = time.time()
 
-                data = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
+                data = np.fromfile(f, count=nnz, dtype=np.int32)
 
                 LOG.info("data extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
@@ -409,7 +401,6 @@ class ECFile:
         ecs = OrderedDict()
         for idx in xrange(len(self.n_matrix.indptr) - 1):
             ec_key = ','.join(map(str, self.n_matrix.getrow(idx).nonzero()[1]))
-            #ec_key = self.a_matrix.getrow(idx).nonzero()[1]
             ecs[ec_key] = len(ecs)
         LOG.info("dict: {}".format(
                 utils.format_time(start_time, time.time())))
@@ -430,7 +421,7 @@ class ECFile:
         except:
             pass
 
-        with gzip.open(self.filename, 'wb') as f:
+        with open(self.filename, 'wb') as f:
             # FORMAT
             f.write(pack('<i', self.format))
             LOG.info("FORMAT: {}".format(self.format))
@@ -576,7 +567,6 @@ class ECFile:
             f.write(pack('<{}i'.format(len(self.n_matrix.data)), *self.n_matrix.data))
 
         LOG.info("{} created in {}".format(self.filename, utils.format_time(start_time, time.time())))
-
 
     def toAPM(self):
         try:
