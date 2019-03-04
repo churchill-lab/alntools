@@ -934,7 +934,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                 LOG.info("FILTERED CRS: 1")
                 f.write(pack('<i', 1))
                 f.write(pack('<i', len(sample)))
-                f.write(pack('<{}s'.format(len(sample)), sample))
+                f.write(pack('<{}s'.format(len(sample)), sample.encode('utf-8')))
 
 
                 #
