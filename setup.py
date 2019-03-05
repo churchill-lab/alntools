@@ -23,7 +23,7 @@ if not on_rtd:
     requirements.append('scipy==0.13.3')
     requirements.append('pysam>=0.6')
     requirements.append('cython>=0.13')
-    requirements.append('tables==3.1.0')
+    requirements.append('tables==3.1.1')
     requirements.append('biopython>=1.63')
     requirements.append('future>=0.16')
     requirements.append('flask>=1.0.2')
