@@ -550,8 +550,10 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
     if sample is None:
         sample = os.path.basename(bam_filename)
         LOG.info("Sample not supplied, using filename: {}".format(sample))
+    else:
+        sample = sample.encode('ascii', 'ignore')
 
-    LOG.info("Parsing file information...")
+    LOG.info("Parsing file information ...")
     temp_time = time.time()
 
     alignment_file = pysam.AlignmentFile(bam_filename)

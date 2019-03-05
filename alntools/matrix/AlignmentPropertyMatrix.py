@@ -20,9 +20,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
     Axis = enum(LOCUS=0, HAPLOTYPE=1, READ=2, GROUP=3, HAPLOGROUP=4)
 
-    def __init__(self, other=None, \
-                 h5file=None, datanode='/', metanode='/', shallow=False, \
-                 shape=None, dtype=float, haplotype_names=None, locus_names=None, read_names=None, sample_names=None, \
+    def __init__(self, other=None,
+                 h5file=None, datanode='/', metanode='/', shallow=False,
+                 shape=None, dtype=float, haplotype_names=None, locus_names=None, read_names=None, sample_names=None,
                  grpfile=None):
 
         Sparse3DMatrix.__init__(self, other=other, h5file=h5file, datanode=datanode, shape=shape, dtype=dtype)
