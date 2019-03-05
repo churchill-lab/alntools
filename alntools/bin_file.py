@@ -91,6 +91,11 @@ class ECFile:
 
         self.__load__()
 
+        del self.haplotypes
+        del self.targets
+        del self.samples
+
+
     def __load__(self):
         if not self.filename:
             raise ValueError("empty file name, cannot load")

@@ -931,10 +931,12 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
                 #     8 SAMPLEID
                 #
 
+                temp_sample = sample.encode('utf-8')
+
                 LOG.info("FILTERED CRS: 1")
                 f.write(pack('<i', 1))
-                f.write(pack('<i', len(sample)))
-                f.write(pack('<{}s'.format(len(sample)), sample.encode('utf-8')))
+                f.write(pack('<i', len(temp_sample)))
+                f.write(pack('<{}s'.format(len(temp_sample)), temp_sample))
 
 
                 #
