@@ -356,7 +356,7 @@ def wrapper_range(args):
 # +
 # quality
 
-def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_count=1, number_processes=-1, temp_dir=None, range_filename=None):
+def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_count=1, number_processes=-1, temp_dir=None, range_filename=None, target_filename=None):
     """
     """
     LOG.debug('Parameters')
@@ -369,6 +369,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
     LOG.debug('processes: {}'.format(number_processes))
     LOG.debug('Temp directory: {}'.format(temp_dir))
     LOG.debug('Range file: {}'.format(range_filename))
+    LOG.debug('Target file: {}'.format(target_filename))
     LOG.debug('-------------------------------------------')
 
     start_time = time.time()
@@ -403,6 +404,20 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
     all_targets_list = []
     target_idx_to_main_target = {}
     haplotypes = set()
+
+    # create main targets from target file
+    # target file will be a list of main targets and should always be greater than the number
+    # of main targets in bam file
+    if target_filename:
+        main_targets = utils.parse_targets(target_filename)
+
+        if len(main_targets) == 0:
+            LOG.error("Unable to parse target file")
+            sys.exit(-1)
+
+        for (k, v) in iteritems(main_targets):
+            main_targets_list.append(k)
+            all_targets_list.append(k)
 
     #
     for idx, reference_sequence_name in enumerate(alignment_file.references):

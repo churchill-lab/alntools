@@ -508,7 +508,7 @@ def wrapper_range(args):
     return process_range_bam(*args)
 
 
-def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_processes=-1, temp_dir=None, range_filename=None, sample=None):
+def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_processes=-1, temp_dir=None, range_filename=None, sample=None, target_filename=None):
     """
     """
     LOG.debug('Parameters')
@@ -520,6 +520,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
     LOG.debug('processes: {}'.format(number_processes))
     LOG.debug('Temp directory: {}'.format(temp_dir))
     LOG.debug('Range file: {}'.format(range_filename))
+    LOG.debug('Target file: {}'.format(target_filename))
     LOG.debug('Sample: {}'.format(sample))
     LOG.debug('-------------------------------------------')
 
@@ -563,6 +564,20 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
     target_idx_to_main_target = {}
     haplotypes = set()
 
+    # create main targets from target file
+    # target file will be a list of main targets and should always be greater than the number
+    # of main targets in bam file
+    if target_filename:
+        main_targets = utils.parse_targets(target_filename)
+
+        if len(main_targets) == 0:
+            LOG.error("Unable to parse target file")
+            sys.exit(-1)
+
+        for (k, v) in iteritems(main_targets):
+            main_targets_list.append(k)
+            all_targets_list.append(k)
+
     #
     for idx, reference_sequence_name in enumerate(alignment_file.references):
         tid = str(alignment_file.get_tid(reference_sequence_name))
@@ -585,7 +600,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         all_targets_list.append(reference_sequence_name)
 
     haplotypes = sorted(list(haplotypes))
-    haplotypes_idx = {h:idx for idx, h in enumerate(haplotypes)}
+    haplotypes_idx = {h: idx for idx, h in enumerate(haplotypes)}
 
     main_target_lengths = np.zeros((len(main_targets), len(haplotypes)), dtype=np.int32)
 
@@ -595,7 +610,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
     #
     # Due to pysam limitation (at least on 0.10.0) we have to LOOP THROUGH TWICE
     # because referencing both alignment_file.lengths and
-    # because referencing both alignment_file.references and
+    # because referencing both alignment_file.references
     #
     for idx, length in enumerate(alignment_file.lengths):
         reference_sequence_name = all_targets_list[idx]
