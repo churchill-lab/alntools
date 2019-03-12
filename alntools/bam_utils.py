@@ -576,7 +576,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
         for (k, v) in iteritems(main_targets):
             main_targets_list.append(k)
-            all_targets_list.append(k)
 
     #
     for idx, reference_sequence_name in enumerate(alignment_file.references):
@@ -614,6 +613,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
     #
     for idx, length in enumerate(alignment_file.lengths):
         reference_sequence_name = all_targets_list[idx]
+        #print('reference_sequence_name=', reference_sequence_name)
 
         idx_underscore = reference_sequence_name.rfind('_')
 
@@ -623,6 +623,11 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         else:
             target = reference_sequence_name
             haplotype = ''
+
+        #print('target=', target)
+        #print('main_targets[target]=', main_targets[target])
+        #print('haplotype=', haplotype)
+        #print('haplotypes_idx[haplotype]=', haplotypes_idx[haplotype])
 
         main_target_lengths[main_targets[target], haplotypes_idx[haplotype]] = length
 

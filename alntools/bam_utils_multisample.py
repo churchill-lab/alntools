@@ -417,7 +417,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
         for (k, v) in iteritems(main_targets):
             main_targets_list.append(k)
-            all_targets_list.append(k)
 
     #
     for idx, reference_sequence_name in enumerate(alignment_file.references):
@@ -441,7 +440,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
         all_targets_list.append(reference_sequence_name)
 
     haplotypes = sorted(list(haplotypes))
-    haplotypes_idx = {h:idx for idx, h in enumerate(haplotypes)}
+    haplotypes_idx = {h: idx for idx, h in enumerate(haplotypes)}
 
     main_target_lengths = np.zeros((len(main_targets), len(haplotypes)), dtype=np.int32)
 
