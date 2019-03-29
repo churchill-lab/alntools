@@ -326,7 +326,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             if type(new_alnmat.count) == csc_matrix:
                 new_alnmat.count.data *= reads_to_use[new_alnmat.count.indices]
                 new_alnmat.count.eliminate_zeros()
-            elif new_alnmat.count == np.ndarray:
+            elif type(new_alnmat.count) == np.ndarray:
                 new_alnmat.count[np.logical_not(reads_to_use)] = 0
             else:
                 raise RuntimeError('APM count should be either scipy.sparse.csc_matrix or numpy.ndarray')
