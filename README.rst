@@ -20,7 +20,7 @@ alntools
 
 **alntools** processes next-generation sequencing read alignments into a sparse compressed incidence matrix (aka Equivalence Classes) and stores it in a pre-defined binary format for efficient downstream analyses and storage. It enables us to compare, contrast, or combine the results of different alignment strategies.
 
-* Free software: Apache Software License 2.0
+* Free software: MIT License
 * Documentation: https://churchill-lab.github.io/alntools/
 
 
