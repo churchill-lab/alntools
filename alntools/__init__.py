@@ -2,7 +2,7 @@
 
 __author__ = """Matthew Vincent"""
 __email__ = 'matt.vincent@jax.org'
-__version__ = '0.1.0'
+__version__ = '0.1.1'
 __logo_text__ = """
 
          888          888                     888

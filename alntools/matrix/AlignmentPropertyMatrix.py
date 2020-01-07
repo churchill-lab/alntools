@@ -20,15 +20,15 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
     Axis = enum(LOCUS=0, HAPLOTYPE=1, READ=2, GROUP=3, HAPLOGROUP=4)
 
-    def __init__(self, other=None, \
-                 h5file=None, datanode='/', metanode='/', shallow=False, \
-                 shape=None, dtype=float, haplotype_names=None, locus_names=None, read_names=None, sample_names=None, \
+    def __init__(self, other=None,
+                 h5file=None, datanode='/', metanode='/', shallow=False,
+                 shape=None, dtype=float, haplotype_names=None, locus_names=None, read_names=None, sample_names=None,
                  grpfile=None):
 
         Sparse3DMatrix.__init__(self, other=other, h5file=h5file, datanode=datanode, shape=shape, dtype=dtype)
 
         self.num_loci, self.num_haplotypes, self.num_reads = self.shape
-        self.num_samples = len(sample_names) if sample_names is not None else 0
+        self.num_samples = 0
         self.num_groups = 0
         self.count  = None
         self.hname  = None
@@ -50,8 +50,6 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
         elif h5file is not None:  # Use for loading from a pytables file
             h5fh = tables.open_file(h5file, 'r')
-            if h5fh.__contains__('%s' % (datanode + '/count')):
-                self.count = h5fh.get_node(datanode, 'count').read()
             if not shallow:
                 self.hname = h5fh.get_node_attr(datanode, 'hname')
                 self.lname = h5fh.get_node(metanode, 'lname').read()
@@ -62,6 +60,16 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 if h5fh.__contains__('%s' % (metanode + '/sname')):
                     self.sname = h5fh.get_node(metanode, 'sname').read()
                     self.sid = dict(zip(self.sname, np.arange(self.num_samples)))
+                    self.num_samples = len(self.sname)
+            if h5fh.__contains__('%s' % (datanode + '/count')):
+                try:
+                    self.count = h5fh.get_node(datanode, 'count').read()  # Format-1
+                except tables.NoSuchNodeError as e:  # Format-2
+                    nmat_node = h5fh.get_node(datanode + '/count')
+                    indptr = h5fh.get_node(nmat_node, 'indptr').read()
+                    indices = h5fh.get_node(nmat_node, 'indices').read()
+                    data = h5fh.get_node(nmat_node, 'data').read()
+                    self.count = csc_matrix((data, indices, indptr), shape=(self.num_reads, self.num_samples))
             h5fh.close()
 
         elif shape is not None:  # Use for initializing an empty matrix
@@ -83,11 +91,11 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 else:
                     raise RuntimeError('The number of names does not match to the matrix shape.')
             if sample_names is not None:
-                if len(sample_names) == self.num_samples:
-                    self.sname = np.array(sample_names)
-                    self.sid   = dict(zip(self.sname, np.arange(self.num_samples)))
-                else:
-                    raise RuntimeError('The number of cells does not match to the matrix shape.')
+                self.sname = np.array(sample_names)
+                self.sid   = dict(zip(self.sname, np.arange(self.num_samples)))
+                self.num_samples = len(sample_names)
+            else:
+                self.num_samples = 1
 
         if grpfile is not None:
             self.__load_groups(grpfile)
@@ -127,7 +135,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
     def copy(self, shallow=False):
         dmat = Sparse3DMatrix.copy(self)
-        dmat.count = copy.copy(self.count)
+        dmat.count = self.count.copy()
         dmat.num_loci, dmat.num_haplotypes, dmat.num_reads = dmat.shape
         if not shallow:
             dmat.__copy_names(self)
@@ -175,6 +183,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 grp_align.num_haplotypes = self.num_haplotypes
                 grp_align.num_reads = self.num_reads
                 grp_align.shape = (grp_align.num_loci, grp_align.num_haplotypes, grp_align.num_reads)
+                grp_align.count = self.count
                 if not shallow:
                     grp_align.lname = copy.copy(self.gname)
                     grp_align.hname = self.hname
@@ -314,7 +323,13 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             hdata.data *= reads_to_use[hdata.indices]
             hdata.eliminate_zeros()
         if new_alnmat.count is not None:
-            new_alnmat.count[np.logical_not(reads_to_use)] = 0
+            if type(new_alnmat.count) == csc_matrix:
+                new_alnmat.count.data *= reads_to_use[new_alnmat.count.indices]
+                new_alnmat.count.eliminate_zeros()
+            elif type(new_alnmat.count) == np.ndarray:
+                new_alnmat.count[np.logical_not(reads_to_use)] = 0
+            else:
+                raise RuntimeError('APM count should be either scipy.sparse.csc_matrix or numpy.ndarray')
         return new_alnmat
 
     def get_unique_reads(self, ignore_haplotype=False, shallow=False):
@@ -394,7 +409,13 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         h5fh = tables.open_file(h5file, 'a')
         fil  = tables.Filters(complevel=1, complib=complib)
         if self.count is not None:
-            h5fh.create_carray(h5fh.root, 'count', obj=self.count, title='Equivalence Class Counts', filters=fil)
+            if len(self.count.shape) == 1:  # count is a vector
+                h5fh.create_carray(h5fh.root, 'count', obj=self.count, title='Equivalence Class Counts', filters=fil)
+            elif len(self.count.shape) == 2:  # count is 2-dim matrix
+                cgroup = h5fh.create_group(h5fh.root, 'count', 'Sparse matrix components for N matrix')
+                h5fh.create_carray(cgroup, 'indptr', obj=self.count.indptr.astype(index_dtype), filters=fil)
+                h5fh.create_carray(cgroup, 'indices', obj=self.count.indices.astype(index_dtype), filters=fil)
+                h5fh.create_carray(cgroup, 'data', obj=self.count.data.astype(index_dtype), filters=fil)
         if not shallow:
             h5fh.set_node_attr(h5fh.root, 'hname', self.hname)
             h5fh.create_carray(h5fh.root, 'lname', obj=self.lname, title='Locus Names', filters=fil)

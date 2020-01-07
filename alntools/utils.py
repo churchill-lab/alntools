@@ -249,3 +249,21 @@ def get_files_in_dir(directory, file_extensions=None):
     return matches
 
 
+def parse_targets(target_file):
+    """Parse a file and return the targets.
+    Args:
+        target_file (str): The name of the file.
+    Returns:
+        OrderedDict: The target name as the key and the insertion order as the
+            value.
+    """
+    targets = OrderedDict()
+    with open(target_file, 'r') as f:
+        for line in f:
+            if line and line[0] == '#':
+                continue
+            _id = line.strip().split()[0]
+            targets[_id] = len(targets)
+    return targets
+
+

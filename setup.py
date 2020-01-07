@@ -3,6 +3,7 @@
 from glob import glob
 import os
 from setuptools import setup
+import alntools
 
 with open('README.rst') as readme_file:
     readme = readme_file.read()
@@ -30,7 +31,7 @@ if not on_rtd:
 
 setup(
     name='alntools',
-    version='0.1.0',
+    version=alntools.__version__,
     description="Alignment tools",
     long_description=readme + '\n\n' + history,
     author="Matthew Vincent",

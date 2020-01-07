@@ -1,3 +1,6 @@
+# -*- coding: utf-8 -*-
+from six import iteritems
+
 import flask
 import math
 import os
@@ -47,9 +50,9 @@ def binned_log2_expr_json(sample_id, bin_size_bp):
                 chr_bin_dict[bin_index] = log2_expr
 
     chr_expr_bins = dict()
-    for chr, bin_count in bin_count_per_chr.iteritems():
+    for (chr, bin_count) in iteritems(bin_count_per_chr):
         log2_expr_bins = [0] * bin_count
-        for bin_index, bin_expr in expr_map[chr].iteritems():
+        for (bin_index, bin_expr) in iteritems(expr_map[chr]):
             log2_expr_bins[bin_index] = bin_expr
         chr_expr_bins[chr] = log2_expr_bins
 
