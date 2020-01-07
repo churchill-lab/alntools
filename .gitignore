@@ -1,6 +1,5 @@
 alntools.egg-info/
 alntools/
-build/
 dist/
 _site
 .idea
