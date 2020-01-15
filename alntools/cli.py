@@ -8,6 +8,7 @@ import click
 
 from . import bin_utils
 from . import methods
+from . import user_interface
 from . import utils
 from . import viewer
 from . import __logo_text__, __version__
@@ -243,6 +244,17 @@ def emase2db(ec_file, apm_file, verbose):
     """
     utils.configure_logging(verbose)
     methods.ec2apm(ec_file, apm_file)
+
+
+@cli.command('ui', options_metavar='<options>', short_help='start user interface')
+@click.option('-p', '--port', default=8080, help="port number")
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def ui(port, verbose):
+    """
+    Generate database file for viewer
+    """
+    utils.configure_logging(verbose)
+    user_interface.start(port)
 
 
 if __name__ == '__main__':

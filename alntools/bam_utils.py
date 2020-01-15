@@ -627,7 +627,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         #print('target=', target)
         #print('main_targets[target]=', main_targets[target])
         #print('haplotype=', haplotype)
-        #print('haplotypes_idx[haplotype]=', haplotypes_idx[haplotype])
+        #   print('haplotypes_idx[haplotype]=', haplotypes_idx[haplotype])
 
         main_target_lengths[main_targets[target], haplotypes_idx[haplotype]] = length
 

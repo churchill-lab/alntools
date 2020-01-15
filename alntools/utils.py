@@ -48,6 +48,18 @@ def configure_logging(level):
         get_logger().setLevel(logging.DEBUG)
 
 
+def str2bool(val):
+    """Convert a string into a boolean.
+
+    Args:
+        val (str): a string representing True
+
+    Returns:
+        bool: True if ``val`` is 'true', '1', 't', 'y', or 'yes'
+    """
+    return str(val).lower() in ['true', '1', 't', 'y', 'yes']
+
+
 def format_time(start, end):
     """Format length of time between ``start`` and ``end``.
 

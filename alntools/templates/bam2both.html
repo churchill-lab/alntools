@@ -1,0 +1,385 @@
+{% extends 'base.html' %}
+
+{% block title %}{{ title }}{% endblock %}
+
+{% block head %}
+
+<link rel="stylesheet"
+          href="{{ url_for('static', filename='vendor/jQueryFileTree/jQueryFileTree.min.css') }}">
+
+<link rel="stylesheet"
+          href="{{ url_for('static', filename='vendor/toast/toast.min.css') }}">
+
+{% endblock %}
+
+{% block body %}
+
+<main role="main" class="container">
+
+        bam2both
+
+    <div class="row" style="height:20px"></div>
+
+    <div id="message_container"></div>
+
+
+    <div class="row">
+        <div class="col">
+
+            <ul class="nav nav-tabs" id="myTab" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" id="home-tab" data-toggle="tab" href="#input" role="tab" aria-controls="input" aria-selected="true">Input</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="profile-tab" data-toggle="tab" href="#output" role="tab" aria-controls="output" aria-selected="false">Output</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" id="contact-tab" data-toggle="tab" href="#options" role="tab" aria-controls="options" aria-selected="false">Options</a>
+                </li>
+            </ul>
+
+            <div class="tab-content" id="myTabContent">
+                <!-- INPUT //-->
+                <div class="tab-pane fade show active" id="input" role="tabpanel" aria-labelledby="input-tab">
+
+                    <div class="row" style="height:10px"></div>
+
+                    <div class="row">
+                        <div class="col">
+                            <span>Select input BAM File(s)</span>
+                        </div>
+                    </div>
+
+                    <div class="row" style="height:10px"></div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div style="height:200px; overflow-x:scroll; border: solid 1px lightgrey" id="bam_files"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- OUTPUT //-->
+                <div class="tab-pane fade" id="output" role="tabpanel" aria-labelledby="output-tab-tab">
+
+                    <div class="row" style="height:10px"></div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="ec_file">Output EC File Name</label>
+                                <input type="text" class="form-control" id="ec_file" placeholder="EC File Name">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div class="form-group">
+                                <label for="emase_file">Output EMASE File Name</label>
+                                <input type="text" class="form-control" id="emase_file" placeholder="EMASE File Name">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col">
+                            <span>Select output location</span>
+                        </div>
+                    </div>
+
+                    <div class="row" style="height:10px"></div>
+
+                    <div class="row">
+                        <div class="col">
+                            <div style="height:200px; overflow-x:scroll; border: solid 1px lightgrey" id="output_dir"></div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- OPTIONS //-->
+                <div class="tab-pane fade" id="options" role="tabpanel" aria-labelledby="options-tab">
+
+
+                    <div class="row" style="height:10px"></div>
+                <div class="row">
+                        <div class="col">
+
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="form-group">
+                                        <label for="num_chunks">Number of Chunks</label>
+                                        <input type="text" class="form-control" id="num_chunks" aria-describedby="num_chunks_help" placeholder="0">
+                                        <small id="num_chunks_help" class="form-text text-muted">Number of chunks to process.</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="form-group">
+                                        <label for="min_count">Minimum Count</label>
+                                        <input type="text" class="form-control" id="min_count" aria-describedby="min_count_help" value="2000">
+                                        <small id="min_count_help" class="form-text text-muted"></small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="form-group">
+                                        <label for="num_processes">Number of Processes</label>
+                                        <input type="text" class="form-control" id="num_processes" aria-describedby="num_processes_help" value="-1">
+                                        <small id="num_processes_help" class="form-text text-muted">-1 means use all available</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="form-group">
+                                        <label for="sample">Sample Identifier</label>
+                                        <input type="text" class="form-control" id="sample" aria-describedby="sample_help" placeholder="Sample ID">
+                                        <small id="sample_help" class="form-text text-muted">Cannot be used with Multisample</small>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="custom-control custom-checkbox">
+                                      <input type="checkbox" class="custom-control-input" aria-describedby="multisample_help" id="multisample">
+                                      <label class="custom-control-label" for="multisample">Multisample</label>
+                                        <small id="multisample_help" class="form-text text-muted">Cannot be used with Sample Identifier</small>
+                                    </div>
+
+                                </div>
+                            </div>
+                        </div>
+
+
+                        <div class="col">
+                            <div class="row">
+                                <div class="col">
+                                    <div class="row">
+                                        <span>Temporary Directory</span>
+                                    </div>
+                                    <div class="row" style="height:10px"></div>
+                                    <div class="row">
+                                        <div style="height:150px; overflow-x:scroll; border: solid 1px lightgrey" id="temp_dir"></div>
+                                    </div>
+                                    <div class="row">
+                                        <small class="text-muted"></small>
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="row">
+                                        <span>Range File</span>
+                                    </div>
+                                    <div class="row" style="height:10px"></div>
+                                    <div class="row">
+                                        <div style="height:150px; overflow-x:scroll; border: solid 1px lightgrey" id="range_file"></div>
+                                    </div>
+                                    <div class="row">
+                                        <small class="text-muted"></small>
+                                    </div>
+                                </div>
+
+                            </div>
+
+
+                            <div class="row">
+                                <div class="col">
+                                    <div class="row">
+                                        <span>Target File</span>
+                                    </div>
+                                    <div class="row" style="height:10px"></div>
+                                    <div class="row">
+                                        <div style="height:150px; overflow-x:scroll; border: solid 1px lightgrey" id="target_file"></div>
+                                    </div>
+                                    <div class="row">
+                                        <small class="text-muted"></small>
+                                    </div>
+                                </div>
+
+                            </div>
+
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <div class="row" style="height:20px"></div>
+
+    <div class="row">
+        <div class="col">
+            <button type="button" id="btnExecute" class="btn btn-primary">Execute</button>
+        </div>
+    </div>
+
+
+</main>
+
+
+{% endblock %}
+
+{% block javascript %}
+    <script src="{{ url_for('static', filename='vendor/jQueryFileTree/jQueryFileTree.min.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/toast/toast.min.js') }}"></script>
+
+
+<script>
+
+    function showError() {
+        $.toast({
+
+            // Shows in the top left corner of the toast header
+            title: 'appple',
+
+            // Shows in the top right corner of the toast header
+            //subtitle: '',
+
+            // Shows in the toast body
+            content: 'askjhjksad askjh kajshkd akshkds',
+
+            // Determines the style of the toast based on Bootstrap styles
+            // 'info', 'success', 'warning', 'error'
+            type: 'info',
+
+            // Determines how long the Toast shoud be shown for.
+            // The default, -1, will show the toast until the user clicks
+            // close.
+            delay: -1,
+
+            // Set the container inside which the toasts will be displayed
+            // use a jQuery selector
+            container: $('#message_container'),
+
+            // Shows an image before the title
+            // img: { src: '', class: '', title: '', alt: '' }
+
+            // true/false respectively to pause on hover
+            //pause_on_hover:
+        });
+
+
+    }
+
+    function getBAMFiles() {
+        let bam_files = [];
+
+         $.each($("#bam_files :checked"), function(idx, elem) {
+             bam_files.push($(elem).val());
+         });
+
+         return bam_files;
+    }
+
+    function getFile(selector) {
+        let selected_file = null;
+
+         $.each($(selector), function(idx, elem) {
+             selected_file = $(elem).val();
+         });
+
+         return selected_file;
+    }
+
+
+    $().ready(function() {
+
+        $('#bam_files').fileTree({
+            script: 'jqueryfiletree',
+            multiSelect: true
+        });
+
+        $('#output_dir').fileTree({
+            script: 'jqueryfiletree',
+            multiSelect: false,
+            onlyFolders: true
+        });
+
+        $('#temp_dir').fileTree({
+            script: 'jqueryfiletree',
+            multiSelect: false,
+            onlyFolders: true
+        });
+
+        $('#range_file').fileTree({
+            script: 'jqueryfiletree',
+            multiSelect: false,
+        });
+
+        $('#target_file').fileTree({
+            script: 'jqueryfiletree',
+            multiSelect: false,
+        });
+
+        $('#btnExecute').button().on('click', function(evt) {
+            evt.preventDefault();
+
+            // input
+            let bam_files = getBAMFiles();
+
+            // output
+            let ec_file = $('#ec_file').val().trim();
+
+            if (ec_file === '') {
+                //showError('Output EC File Name must have a value.')
+            }
+
+            let emase_file = $('#emase_file').val().trim();
+            let ouput_dir = $($('#output_dir .selected').children()[0]).attr('rel');
+
+            // options
+            let num_chunks = $('#num_chunks').val().trim();
+            let min_count = $('#min_count').val().trim();
+            let num_processes = $('#num_processes').val().trim();
+            let sample_id = $('#sample_id').val();
+
+            if (sample_id) {
+                sample_id = sample_id.trim();
+            }
+
+            let multisample = $('#multisample').is(':checked');
+
+            let temp_dir = $($('#temp_dir .selected').children()[0]).attr('rel');
+            let range_file = $($('#range_file .selected').children()[0]).attr('rel');
+            let target_file = $($('#target_file .selected').children()[0]).attr('rel');
+
+            console.log('bam_files=', bam_files);
+            console.log('ec_file=', ec_file);
+            console.log('emase_file=', emase_file);
+            console.log('ouput_dir=', ouput_dir);
+            console.log('num_chunks=', num_chunks);
+            console.log('min_count=', min_count);
+            console.log('num_processes=', num_processes);
+            console.log('sample_id=', sample_id);
+            console.log('multisample=', multisample);
+            console.log('temp_dir=', temp_dir);
+            console.log('range_file=', range_file);
+            console.log('target_file=', target_file);
+
+            showError();
+
+
+
+
+            return false;
+        });
+    });
+
+</script>
+
+{% endblock %}
