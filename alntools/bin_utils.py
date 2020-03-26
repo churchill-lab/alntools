@@ -29,6 +29,162 @@ def get_ec_dict(self):
         ecs[ec_key] = len(ecs)
 
 
+def save(ec_filename, sample, haplotypes, main_targets, main_target_lengths, alnmat, cntmat):
+    with open(ec_filename, 'wb') as f:
+        # format
+        f.write(pack('<i', 2))
+        LOG.info("FORMAT: 2")
+
+        #
+        # SECTION: HAPLOTYPES
+        #     [# of HAPLOTYPES = H]
+        #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
+        #     ...
+        #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
+        #
+        # Example:
+        #     8
+        #     1 A
+        #     1 B
+        #     1 C
+        #     1 D
+        #     1 E
+        #     1 F
+        #     1 G
+        #     1 H
+        #
+
+        LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(haplotypes)))
+        f.write(pack('<i', len(haplotypes)))
+        for idx, hap in enumerate(haplotypes):
+            #LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+            f.write(pack('<i', len(hap)))
+            f.write(pack('<{}s'.format(len(hap)), hap))
+
+        #
+        # SECTION: TARGETS
+        #     [# of TARGETS = T]
+        #     [length TARGET 1 text][TARGET 1 text][HAP 1 length] ... [HAP H length]
+        #     ...
+        #     [length TARGET T text][TARGET T text][HAP 1 length] ... [HAP H length]
+        #
+        # Example:
+        #     80000
+        #     18 ENSMUST00000156068 234
+        #     18 ENSMUST00000209341 1054
+        #     ...
+        #     18 ENSMUST00000778019 1900
+        #
+
+        LOG.info("NUMBER OF TARGETS: {:,}".format(len(main_targets)))
+        f.write(pack('<i', len(main_targets)))
+        for idx, main_target in enumerate(main_targets):
+            f.write(pack('<i', len(main_target)))
+            f.write(pack('<{}s'.format(len(main_target)), main_target))
+            for idx_hap, hap in enumerate(haplotypes):
+                length = main_target_lengths[idx, idx_hap]
+                f.write(pack('<i', length))
+
+        #
+        # SECTION: CRS
+        #     [# of CRS = 1]
+        #     [length of CR 1 text][CR 1 text]
+        #
+        # Example:
+        #     1
+        #     8 SAMPLEID
+        #
+
+        temp_sample = sample.encode('utf-8')
+
+        LOG.info("FILTERED CRS: 1")
+        f.write(pack('<i', 1))
+        f.write(pack('<i', len(temp_sample)))
+        f.write(pack('<{}s'.format(len(temp_sample)), temp_sample))
+
+
+        #
+        # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
+        #     [# of ALIGNMENT MAPPINGS (AM) = A]
+        #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
+        #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 2)
+        #     ...
+        #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM A)
+        #
+        # NOTE:
+        #     HAPLOTYPE flag is an integer that denotes which haplotype
+        #     (allele) a read aligns to given an EC. For example, 00, 01,
+        #     10, and 11 can specify whether a read aligns to the 1st
+        #     and/or 2nd haplotype of a transcript.  These binary numbers
+        #     are converted to integers - 0, 1, 2, 3 - and stored as the
+        #     haplotype flag.
+        #
+        # Example:
+        #     5000
+        #     1 2 4
+        #     8 2 1
+        #     ...
+        #     100 200 8
+        #
+
+        LOG.info("Determining mappings...")
+
+        LOG.info("A MATRIX: INDPTR LENGTH {:,}".format(len(alnmat.indptr)))
+        f.write(pack('<i', len(alnmat.indptr)))
+
+        # NON ZEROS
+        LOG.info("A MATRIX: NUMBER OF NON ZERO: {:,}".format(alnmat.nnz))
+        f.write(pack('<i', alnmat.nnz))
+
+        # ROW OFFSETS
+        LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(alnmat.indptr)))
+        f.write(pack('<{}i'.format(len(alnmat.indptr)), *alnmat.indptr))
+        # LOG.error(alnmat.indptr)
+
+        # COLUMNS
+        LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(alnmat.indices)))
+        f.write(pack('<{}i'.format(len(alnmat.indices)), *alnmat.indices))
+        # LOG.error(alnmat.indices)
+
+        # DATA
+        LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(alnmat.data)))
+        f.write(pack('<{}i'.format(len(alnmat.data)), *alnmat.data))
+        # LOG.error(alnmat.data)
+
+        #
+        # SECTION: "N" Matrix
+        #
+        # "N" Matrix format is EC (rows) by CRS (columns) with
+        # each value being the EC count.
+        #
+        # Instead of storing a "dense" matrix, we store a "sparse"
+        # matrix utilizing Compressed Sparse Column (CSC) format.
+        #
+
+        LOG.info("N MATRIX: NUMBER OF EQUIVALENCE CLASSES: {:,}".format(cntmat.shape[0]))
+        LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(cntmat.indptr)))
+        f.write(pack('<i', len(cntmat.indptr)))
+
+        # NON ZEROS
+        LOG.info("N MATRIX: NUMBER OF NON ZERO: {:,}".format(cntmat.nnz))
+        f.write(pack('<i', cntmat.nnz))
+
+        # ROW OFFSETS
+        LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(cntmat.indptr)))
+        f.write(pack('<{}i'.format(len(cntmat.indptr)), *cntmat.indptr))
+        # LOG.error(cntmat.indptr)
+
+        # COLUMNS
+        LOG.info("N MATRIX: LENGTH INDICES: {:,}".format(len(cntmat.indices)))
+        f.write(pack('<{}i'.format(len(cntmat.indices)), *cntmat.indices))
+        # LOG.error(cntmat.indices)
+
+        # DATA
+        LOG.info("N MATRIX: LENGTH DATA: {:,}".format(len(cntmat.data)))
+        f.write(pack('<{}i'.format(len(cntmat.data)), *cntmat.data))
+        # LOG.error(cntmat.data)
+
+
 def combine(ec_files, ec_out):
     start_time = time.time()
 
@@ -320,7 +476,7 @@ def combine(ec_files, ec_out):
         npa = csr_matrix((np.array(data, dtype=np.int32),
                           np.array(indices, dtype=np.int32),
                           np.array(indptr, dtype=np.int32)),
-                         shape=(len(ECS), len(samples)))
+                          shape=(len(ECS), len(samples)))
 
         LOG.info("NPA SUM: {:,}".format(npa.sum()))
 

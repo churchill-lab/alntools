@@ -125,6 +125,20 @@ def bam2both(bam_file, ec_file, emase_file, chunks, directory, mincount, multisa
         methods.bam2both(bam_file, ec_file, emase_file, chunks, directory, number_processes, rangefile, sample, targets)
 
 
+@cli.command('salmon2ec', options_metavar='<options>', short_help='convert a salmon eq_classes file to EC')
+@click.argument('salmon_dir', metavar='salmon_dir', type=click.Path(exists=True, resolve_path=True, dir_okay=True))
+@click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
+@click.option('-s', '--sample', metavar='sample', default='NA', help="sample identifier")
+@click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
+@click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
+def salmon2ec(salmon_dir, ec_file, sample, targets, verbose):
+    """
+    Convert a salmon eq_classes file to an EC file (ec_file).
+    """
+    utils.configure_logging(verbose)
+    methods.salmon2ec(salmon_dir, ec_file, sample, targets)
+
+
 @cli.command('range', options_metavar='<options>', short_help='test')
 @click.argument('input', nargs=-1, type=click.Path(resolve_path=True, dir_okay=True))
 @click.argument('range_file', metavar='range_file', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True))

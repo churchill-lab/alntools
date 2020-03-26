@@ -15,6 +15,7 @@ from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 from . import bam_utils
 from . import bam_utils_multisample
 from . import barcode_utils
+from . import salmon_utils
 from . import bin_file
 from . import bin_utils
 from . import db_utils
@@ -46,6 +47,10 @@ def bam2ec_multisample(bam_filename, ec_filename, chunks=0, minimum_count=-1, di
 
 def bam2both_multisample(bam_filename, ec_filename, emase_filename, chunks=0, minimum_count=-1, directory=None, number_processes=-1, range_filename=None, target_filename=None):
     bam_utils_multisample.convert(bam_filename, ec_filename, emase_filename, num_chunks=chunks, minimum_count=minimum_count, number_processes=number_processes, temp_dir=directory, range_filename=range_filename, target_filename=target_filename)
+
+
+def salmon2ec(salmon_dir, ec_filename, sample=None, target_filename=None):
+    salmon_utils.convert(salmon_dir, ec_filename, sample=sample, target_filename=target_filename)
 
 
 def split_bam(bam_filename, num_chunks, directory=None):
