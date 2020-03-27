@@ -102,7 +102,7 @@ def parse_salmon_ec(salmon_dir, target_filename=None):
 
         data = list()
         for h in range(num_haps):
-            data.append(coo_matrix((np.ones(len(rowid[h])), (rowid[h], colid[h])), shape=(num_ec, num_transcripts)))
+            data.append(coo_matrix((np.ones(len(rowid[h])), (rowid[h], colid[h])), shape=(num_ec, num_transcripts), dtype=int))
         for h in range(num_haps):
             data[h] = data[h].tocsr()
 
