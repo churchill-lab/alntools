@@ -59,7 +59,7 @@ def save(ec_filename, sample, haplotypes, main_targets, main_target_lengths, aln
         for idx, hap in enumerate(haplotypes):
             #LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
             f.write(pack('<i', len(hap)))
-            f.write(pack('<{}s'.format(len(hap)), hap))
+            f.write(pack('<{}s'.format(len(hap)), hap.encode('utf-8')))
 
         #
         # SECTION: TARGETS
