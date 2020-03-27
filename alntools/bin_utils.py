@@ -82,8 +82,7 @@ def save(ec_filename, sample, haplotypes, main_targets, main_target_lengths, aln
             f.write(pack('<i', len(main_target)))
             f.write(pack('<{}s'.format(len(main_target)), main_target.encode('utf-8')))
             for idx_hap, hap in enumerate(haplotypes):
-                length = main_target_lengths[idx, idx_hap]
-                f.write(pack('<i', length))
+                f.write(pack('<d', main_target_lengths[idx, idx_hap]))
 
         #
         # SECTION: CRS
@@ -98,7 +97,7 @@ def save(ec_filename, sample, haplotypes, main_targets, main_target_lengths, aln
         LOG.info("NUMBER OF SAMPLES: 1")
         f.write(pack('<i', 1))
         f.write(pack('<i', len(sample)))
-        f.write(pack('<{}s'.format(len(temp_sample)), sample.encode('utf-8')))
+        f.write(pack('<{}s'.format(len(sample)), sample.encode('utf-8')))
 
 
         #
