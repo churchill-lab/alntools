@@ -115,7 +115,7 @@ def parse_salmon_ec(salmon_dir, target_filename=None):
         cntmat = csr_matrix(ec_counts).transpose()  # Note: This is eventually a csc_matrix
 
         LOG.info('Creating objects of meta data')
-        transcript_lengths = np.zeros((num_transcripts, num_haps))
+        transcript_lengths = np.zeros((num_transcripts, num_haps), dtype=int)
         for _, tinfo in tidx2coord.items():
             transcript_lengths[tinfo[0], tinfo[1]] = tinfo[2]
         #transcript_lengths[transcript_lengths < 1] = 1.0
