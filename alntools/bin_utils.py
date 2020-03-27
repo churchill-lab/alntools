@@ -82,7 +82,7 @@ def save(ec_filename, sample, haplotypes, main_targets, main_target_lengths, aln
             f.write(pack('<i', len(main_target)))
             f.write(pack('<{}s'.format(len(main_target)), main_target.encode('utf-8')))
             for idx_hap, hap in enumerate(haplotypes):
-                f.write(pack('<d', main_target_lengths[idx, idx_hap]))
+                f.write(pack('<i', main_target_lengths[idx, idx_hap]))  # TODO: store as double (Fix emase-zero too)
 
         #
         # SECTION: CRS
