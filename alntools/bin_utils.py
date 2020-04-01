@@ -74,7 +74,7 @@ def load(ec_filename):
             data_N = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
 
             alnmat = APM()
-            alnmat.shape = (num_transcripts, num_haps, num_ec)
+            alnmat.shape = (num_transcripts, num_haps, num_ecs)
             alnmat.hname = hname
             alnmat.tname = tname
             alnmat.finalized = False
@@ -93,7 +93,7 @@ def load(ec_filename):
 
         elif bin_format == 0:
             raise TypeError('Format 0 is not supported anymore.')
-        
+
 
 def save(ec_filename, sample, haplotypes, main_targets, main_target_lengths, alnmat, cntmat):
     with open(ec_filename, 'wb') as f:
