@@ -81,9 +81,9 @@ def load(ec_filename):
             for hidx in range(num_haps-1):
                 data_A, data_A_rem = np.divmod(data_A, 2)
                 alnmat.data.append(csr_matrix((data_A_rem, indices_A, indptr_A), shape=(num_ecs, num_transcripts)))
-            data.append(csr_matrix((data_A, indices_A, indptr_A), shape=(num_ecs, num_transcripts)))
+            alnmat.data.append(csr_matrix((data_A, indices_A, indptr_A), shape=(num_ecs, num_transcripts)))
             for hidx in range(num_haps):
-                data[hidx].eliminate_zeros()
+                alnmat.data[hidx].eliminate_zeros()
             alnmat.count = csc_matrix((data_N, indices_N, indptr_N), shape=(num_ecs, num_samples))
             alnmat.finalize()
             return alnmat
