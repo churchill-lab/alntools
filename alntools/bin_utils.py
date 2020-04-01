@@ -1,14 +1,14 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 from six import iteritems
-from struct import pack
+from struct import pack, unpack
 
 import os
 import time
 
 import numpy as np
 
-from scipy.sparse import coo_matrix, csr_matrix
+from scipy.sparse import coo_matrix, csr_matrix, csc_matrix
 
 from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 from . import bin_file
@@ -28,6 +28,72 @@ def get_ec_dict(self):
         ec_key = ','.join(map(str, self.a_matrix.getrow(idx).nonzero()[1]))
         ecs[ec_key] = len(ecs)
 
+
+def load(ec_filename):
+    with open(ec_filename, 'rb') as f:
+
+        bin_format = unpack('<i', f.read(4))[0]
+
+        if bin_format == 2:
+        
+            num_haps = unpack('<i', f.read(4))[0]
+            hname = list()
+            for hidx in range(num_haps):
+                hname_len = unpack('<i', f.read(4))[0]
+                hname.append(unpack('<{}s'.format(hname_len), f.read(hname_len))[0].decode('utf-8'))
+            hname = np.array(hname)
+        
+            num_transcripts = unpack('<i', f.read(4))[0]
+            transcript_lengths = np.zeros((num_transcripts, num_haps), dtype=float)
+            tname = list()
+            for tidx in range(num_transcripts):
+                tname_len = unpack('<i', f.read(4))[0]
+                tname.append(unpack('<{}s'.format(tname_len), f.read(tname_len))[0].decode('utf-8'))
+                for hidx in range(num_haps):
+                    transcript_lengths[tidx, hidx] = unpack('<i', f.read(4))[0]
+            tname = np.array(tname)
+        
+            sname = list()
+            num_samples = unpack('<i', f.read(4))[0]
+            for sidx in range(num_samples):
+                sname_len = unpack('<i', f.read(4))[0]
+                sname.append(unpack('<{}s'.format(sname_len), f.read(sname_len))[0].decode('utf-8'))
+            sname = np.array(sname)
+
+            indptr_len = unpack('<i', f.read(4))[0]
+            num_ecs = indptr_len - 1
+            nnz = unpack('<i', f.read(4))[0]
+            indptr_A = np.array(unpack('<{}i'.format(indptr_len), f.read(4*indptr_len)))
+            indices_A = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+            data_A = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+
+            indptr_len = unpack('<i', f.read(4))[0]
+            nnz = unpack('<i', f.read(4))[0]
+            indptr_N = np.array(unpack('<{}i'.format(indptr_len), f.read(4*indptr_len)))
+            indices_N = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+            data_N = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+
+            alnmat = APM()
+            alnmat.shape = (num_transcripts, num_haps, num_ec)
+            alnmat.hname = hname
+            alnmat.tname = tname
+            alnmat.finalized = False
+            for hidx in range(num_haps-1):
+                data_A, data_A_rem = np.divmod(data_A, 2)
+                alnmat.data.append(csr_matrix((data_A_rem, indices_A, indptr_A), shape=(num_ecs, num_transcripts)))
+            data.append(csr_matrix((data_A, indices_A, indptr_A), shape=(num_ecs, num_transcripts)))
+            for hidx in range(num_haps):
+                data[hidx].eliminate_zeros()
+            alnmat.count = csc_matrix((data_N, indices_N, indptr_N), shape=(num_ecs, num_samples))
+            alnmat.finalize()
+            return alnmat
+
+        elif bin_format == 1:
+            raise NotImplementedError
+
+        elif bin_format == 0:
+            raise TypeError('Format 0 is not supported anymore.')
+        
 
 def save(ec_filename, sample, haplotypes, main_targets, main_target_lengths, alnmat, cntmat):
     with open(ec_filename, 'wb') as f:
