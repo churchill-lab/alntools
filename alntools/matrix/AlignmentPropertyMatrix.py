@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 import copy
 import tables
+from struct import pack, unpack
 import numpy as np
 from scipy.sparse import lil_matrix, coo_matrix, csc_matrix, csr_matrix
 
