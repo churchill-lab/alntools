@@ -32,20 +32,23 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         self.num_loci, self.num_haplotypes, self.num_reads = self.shape
         self.num_samples = 0
         self.num_groups = 0
-        self.count  = None
-        self.hname  = None
-        self.lname  = None   # locus name
-        self.rname  = None   # read name
-        self.sname  = None   # sample name (e.g. sample barcodes::cell barcodes)
-        self.lid    = None   # locus ID
-        self.rid    = None   # read ID
-        self.sid    = None   # sample ID
-        self.gname  = None   # group name
-        self.groups = None   # groups in terms of locus IDs
+        self.count   = None
+        self.hname   = None
+        self.lname   = None   # locus name
+        self.rname   = None   # read name
+        self.sname   = None   # sample name (e.g. sample barcodes::cell barcodes)
+        self.lid     = None   # locus ID
+        self.rid     = None   # read ID
+        self.sid     = None   # sample ID
+        self.lengths = None 
+        self.gname   = None   # group name
+        self.groups  = None   # groups in terms of locus IDs
 
         if other is not None:  # Use for copying from other existing AlignmentPropertyMatrix object
             if other.count is not None:
                 self.count = copy.copy(other.count)
+            if other.lengths is not None:
+                self.lengths = copy.copy(other.lengths)
             if not shallow:
                 self.__copy_names(other)
                 self.__copy_group_info(other)
@@ -62,14 +65,15 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     self.hname = np.array(hname)
                     # Get transcipt info
                     self.num_loci = unpack('<i', f.read(4))[0]
-                    transcript_lengths = np.zeros((self.num_loci, self.num_haplotypes), dtype=float)
+                    self.lengths = np.zeros((self.num_loci, self.num_haplotypes), dtype=float)
                     tname = list()
                     for tidx in range(self.num_loci):
                         tname_len = unpack('<i', f.read(4))[0]
                         tname.append(unpack('<{}s'.format(tname_len), f.read(tname_len))[0].decode('utf-8'))
                         for hidx in range(self.num_haplotypes):
-                            transcript_lengths[tidx, hidx] = unpack('<i', f.read(4))[0]
+                            self.lengths[tidx, hidx] = unpack('<i', f.read(4))[0]
                     self.lname = np.array(tname)
+                    self.lid = dict(zip(self.lname, np.arange(self.num_loci)))
                     # Get sample info
                     sname = list()
                     self.num_samples = unpack('<i', f.read(4))[0]
@@ -77,6 +81,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                         sname_len = unpack('<i', f.read(4))[0]
                         sname.append(unpack('<{}s'.format(sname_len), f.read(sname_len))[0].decode('utf-8'))
                     self.sname = np.array(sname)
+                    self.sid = dict(zip(self.sname, np.arange(self.num_samples)))
                     # Read in alignment matrix info
                     indptr_len = unpack('<i', f.read(4))[0]
                     self.num_reads = indptr_len - 1
@@ -91,9 +96,6 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     indices_N = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
                     data_N = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
                     # Populate class member variables
-                    self.shape = (self.num_loci, self.num_haplotypes, self.num_reads)
-                    self.lid = dict(zip(self.lname, np.arange(self.num_loci)))
-                    self.sid = dict(zip(self.sname, np.arange(self.num_samples)))
                     for hidx in range(self.num_haplotypes-1):
                         data_A, data_A_rem = np.divmod(data_A, 2)
                         self.data.append(csr_matrix((data_A_rem, indices_A, indptr_A), shape=(self.num_reads, self.num_loci)))
@@ -101,6 +103,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     for hidx in range(self.num_haplotypes):
                         self.data[hidx].eliminate_zeros()
                     self.count = csc_matrix((data_N, indices_N, indptr_N), shape=(self.num_reads, self.num_samples))
+                    self.shape = (self.num_loci, self.num_haplotypes, self.num_reads)
                     self.finalize()
                 elif bin_format == 1:
                     raise NotImplementedError
@@ -129,6 +132,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     indices = h5fh.get_node(nmat_node, 'indices').read()
                     data = h5fh.get_node(nmat_node, 'data').read()
                     self.count = csc_matrix((data, indices, indptr), shape=(self.num_reads, self.num_samples))
+            if h5fh.__contains__('%s' % (datanode + '/lengths')):
+                self.lengths = h5fh.get_node(datanode, 'lengths').read()
             h5fh.close()
 
         elif shape is not None:  # Use for initializing an empty matrix
@@ -467,6 +472,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         Sparse3DMatrix.save(self, h5file=h5file, title=title, index_dtype=index_dtype, data_dtype=data_dtype, incidence_only=incidence_only, complib=complib)
         h5fh = tables.open_file(h5file, 'a')
         fil  = tables.Filters(complevel=1, complib=complib)
+        if self.lengths is not None:
+            h5fh.create_carray(h5fh.root, 'lengths', obj=self.lengths, title='Transcript Lengths', filters=fil)
         if self.count is not None:
             if len(self.count.shape) == 1:  # count is a vector
                 h5fh.create_carray(h5fh.root, 'count', obj=self.count, title='Equivalence Class Counts', filters=fil)
