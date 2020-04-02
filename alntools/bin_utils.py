@@ -92,6 +92,8 @@ def load(ec_filename):
             for hidx in range(num_haps):
                 alnmat.data[hidx].eliminate_zeros()
             alnmat.count = csc_matrix((data_N, indices_N, indptr_N), shape=(num_ecs, num_samples))
+            if num_samples == 1:
+                alnmat.count = alnmat.count.todense().A.flatten()
             alnmat.finalize()
             return alnmat
 
