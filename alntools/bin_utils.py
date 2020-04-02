@@ -76,7 +76,14 @@ def load(ec_filename):
             alnmat = APM()
             alnmat.shape = (num_transcripts, num_haps, num_ecs)
             alnmat.hname = hname
-            alnmat.tname = tname
+            alnmat.lname = tname
+            alnmat.sname = sname
+            alnmat.num_haplotypes = len(hname)
+            alnmat.num_loci = len(tname)
+            alnmat.num_reads = num_ecs
+            alnmat.num_samples = len(sname)
+            alnmat.lid = dict(zip(tname, np.arange(num_transcripts)))
+            alnmat.sid = dict(zip(sname, np.arange(num_samples)))
             alnmat.finalized = False
             for hidx in range(num_haps-1):
                 data_A, data_A_rem = np.divmod(data_A, 2)

@@ -5,6 +5,7 @@ import numpy as np
 from scipy.sparse import lil_matrix, coo_matrix, csc_matrix, csr_matrix
 
 from alntools.matrix.Sparse3DMatrix import Sparse3DMatrix
+from . import bin_utils
 
 try:
     xrange
@@ -20,7 +21,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
 
     Axis = enum(LOCUS=0, HAPLOTYPE=1, READ=2, GROUP=3, HAPLOGROUP=4)
 
-    def __init__(self, other=None,
+    def __init__(self, 
+                 other=None,
+                 binfile=None,
                  h5file=None, datanode='/', metanode='/', shallow=False,
                  shape=None, dtype=float, haplotype_names=None, locus_names=None, read_names=None, sample_names=None,
                  grpfile=None):
@@ -48,6 +51,63 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 self.__copy_names(other)
                 self.__copy_group_info(other)
 
+        elif binfile is not None:
+            with open(binfile, 'rb') as f:
+                bin_format = unpack('<i', f.read(4))[0]
+                if bin_format == 2:
+                    self.num_haplotypes = unpack('<i', f.read(4))[0]
+                    hname = list()
+                    for hidx in range(self.num_haplotypes):
+                        hname_len = unpack('<i', f.read(4))[0]
+                        hname.append(unpack('<{}s'.format(hname_len), f.read(hname_len))[0].decode('utf-8'))
+                    self.hname = np.array(hname)
+                    # Get transcipt info
+                    self.num_loci = unpack('<i', f.read(4))[0]
+                    transcript_lengths = np.zeros((self.num_loci, self.num_haplotypes), dtype=float)
+                    tname = list()
+                    for tidx in range(self.num_loci):
+                        tname_len = unpack('<i', f.read(4))[0]
+                        tname.append(unpack('<{}s'.format(tname_len), f.read(tname_len))[0].decode('utf-8'))
+                        for hidx in range(self.num_haplotypes):
+                            transcript_lengths[tidx, hidx] = unpack('<i', f.read(4))[0]
+                    self.lname = np.array(tname)
+                    # Get sample info
+                    sname = list()
+                    self.num_samples = unpack('<i', f.read(4))[0]
+                    for sidx in range(self.num_samples):
+                        sname_len = unpack('<i', f.read(4))[0]
+                        sname.append(unpack('<{}s'.format(sname_len), f.read(sname_len))[0].decode('utf-8'))
+                    self.sname = np.array(sname)
+                    # Read in alignment matrix info
+                    indptr_len = unpack('<i', f.read(4))[0]
+                    self.num_reads = indptr_len - 1
+                    nnz = unpack('<i', f.read(4))[0]
+                    indptr_A = np.array(unpack('<{}i'.format(indptr_len), f.read(4*indptr_len)))
+                    indices_A = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+                    data_A = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+                    # Read in EC count matrix info
+                    indptr_len = unpack('<i', f.read(4))[0]
+                    nnz = unpack('<i', f.read(4))[0]
+                    indptr_N = np.array(unpack('<{}i'.format(indptr_len), f.read(4*indptr_len)))
+                    indices_N = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+                    data_N = np.array(unpack('<{}i'.format(nnz), f.read(4*nnz)))
+                    # Populate class member variables
+                    self.shape = (self.num_loci, self.num_haplotypes, self.num_reads)
+                    self.lid = dict(zip(self.lname, np.arange(self.num_loci)))
+                    self.sid = dict(zip(self.sname, np.arange(self.num_samples)))
+                    for hidx in range(self.num_haplotypes-1):
+                        data_A, data_A_rem = np.divmod(data_A, 2)
+                        self.data.append(csr_matrix((data_A_rem, indices_A, indptr_A), shape=(self.num_reads, self.num_loci)))
+                    self.data.append(csr_matrix((data_A, indices_A, indptr_A), shape=(self.num_reads, self.num_loci)))
+                    for hidx in range(self.num_haplotypes):
+                        self.data[hidx].eliminate_zeros()
+                    self.count = csc_matrix((data_N, indices_N, indptr_N), shape=(self.num_reads, self.num_samples))
+                    self.finalize()
+                elif bin_format == 1:
+                    raise NotImplementedError
+                elif bin_format == 0:
+                    raise TypeError('Format 0 is not supported anymore.')
+ 
         elif h5file is not None:  # Use for loading from a pytables file
             h5fh = tables.open_file(h5file, 'r')
             if not shallow:
