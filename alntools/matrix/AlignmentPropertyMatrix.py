@@ -103,6 +103,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     for hidx in range(self.num_haplotypes):
                         self.data[hidx].eliminate_zeros()
                     self.count = csc_matrix((data_N, indices_N, indptr_N), shape=(self.num_reads, self.num_samples))
+                    if self.num_samples == 1:
+                        self.count = self.count.todense().A.flatten()
                     self.shape = (self.num_loci, self.num_haplotypes, self.num_reads)
                     self.finalize()
                 elif bin_format == 1:
