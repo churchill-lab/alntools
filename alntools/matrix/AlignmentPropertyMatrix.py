@@ -40,7 +40,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
         self.lid     = None   # locus ID
         self.rid     = None   # read ID
         self.sid     = None   # sample ID
-        self.lengths = None 
+        self.lengths = None   # transcript lengths (or effective lengths)
         self.gname   = None   # group name
         self.groups  = None   # groups in terms of locus IDs
 
@@ -200,6 +200,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
     def copy(self, shallow=False):
         dmat = Sparse3DMatrix.copy(self)
         dmat.count = self.count.copy()
+        dmat.lengths = self.lengths.copy()
         dmat.num_loci, dmat.num_haplotypes, dmat.num_reads = dmat.shape
         if not shallow:
             dmat.__copy_names(self)
@@ -457,6 +458,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             dmat.num_loci, dmat.num_haplotypes, dmat.num_reads = dmat.shape
             if self.count is not None and other.count is not None:
                 dmat.count = np.concatenate((self.count, other.count))
+            if self.lengths is not None:
+                dmat.lengths = copy.copy(self.lengths)
             if not shallow:
                 dmat.hname = self.hname
                 dmat.lname = copy.copy(self.lname)
