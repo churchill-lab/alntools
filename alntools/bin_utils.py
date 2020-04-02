@@ -84,6 +84,7 @@ def load(ec_filename):
             alnmat.num_samples = len(sname)
             alnmat.lid = dict(zip(tname, np.arange(num_transcripts)))
             alnmat.sid = dict(zip(sname, np.arange(num_samples)))
+            alnmat.lengths = transcript_lengths
             alnmat.finalized = False
             for hidx in range(num_haps-1):
                 data_A, data_A_rem = np.divmod(data_A, 2)
