@@ -31,7 +31,7 @@ def cli():
 @click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
 @click.argument('number', metavar='number', type=int)
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="output directory")
-@click.option('-v', '--verbose', help='use \'-vv\' or \'-vvv\' for the more output')
+@click.option('-v', '--verbose', count=True, help='use \'-vv\' or \'-vvv\' for the more output')
 def split(bam_file, number, directory, verbose):
     """
     Split a BAM file into smaller bam files.
