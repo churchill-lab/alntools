@@ -1058,7 +1058,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
 
 def split_bam(filename, n, directory=None):
     """
-    Split a BAM file into ``n`` files.
+    Split a BAM file into ``n`` smaller bam files.
 
     :param str filename: the name of the BAM file
     :param int n: number of files to chunk into
@@ -1185,7 +1185,7 @@ def calculate_chunks(filename, num_chunks):
         return [pr]
 
     try:
-        f = open(filename, 'r')
+        f = open(filename, 'rb')
         # get all the block start offsets
         block_offsets = []
         decompressed_lengths = []

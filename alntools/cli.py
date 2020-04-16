@@ -27,23 +27,14 @@ def cli():
     """
 
 
-@cli.command('split', options_metavar='<options>',
-             short_help='split a BAM file into many')
-@click.argument('bam_file',
-                metavar='bam_file',
-                type=click.Path(exists=True, resolve_path=True, dir_okay=False))
-@click.argument('number',
-                metavar='number',
-                type=int)
-@click.option('-d', '--directory',
-              type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True),
-              help="output directory")
-@click.option('-v', '--verbose',
-              count=True,
-              help='the more times listed, the more output')
+@cli.command('split', options_metavar='<options>', short_help='split a BAM file into smaller bam files')
+@click.argument('bam_file', metavar='bam_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
+@click.argument('number', metavar='number', type=int)
+@click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="output directory")
+@click.option('-v', '--verbose', help='use \'-vv\' or \'-vvv\' for the more output')
 def split(bam_file, number, directory, verbose):
     """
-    Convert a BAM file (bam_file) to an EC file (ec_file).
+    Split a BAM file into smaller bam files.
     """
     utils.configure_logging(verbose)
     methods.split_bam(bam_file, number, directory)
@@ -63,7 +54,7 @@ def split(bam_file, number, directory, verbose):
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
 def bam2ec(bam_file, ec_file, chunks, directory, mincount, multisample, number_processes, rangefile, sample, targets, verbose):
     """
-    Convert a BAM file (bam_file) to an EC file (ec_file).
+    Convert a BAM file (bam_file) to a binary EC file (ec_file).
     """
     utils.configure_logging(verbose)
     if multisample:
@@ -113,7 +104,7 @@ def bam2emase(bam_file, emase_file, chunks, directory, mincount, multisample, nu
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
 def bam2both(bam_file, ec_file, emase_file, chunks, directory, mincount, multisample, number_processes, rangefile, sample, verbose, targets):
     """
-    Convert a BAM file (bam_file) to an EC file (ec_file).
+    Convert a BAM file (bam_file) to a binary EC file (ec_file) and an EMASE file (emase_file).
     """
     utils.configure_logging(verbose)
     if multisample:
@@ -147,7 +138,7 @@ def salmon2ec(salmon_dir, ec_file, sample, targets, verbose):
 @click.option('-v', '--verbose', count=True, help='the more times listed, the more output')
 def range(input, range_file, targets, directory, verbose):
     """
-    Create range file for specified BAM files
+    Create range file for BAM files
     """
     utils.configure_logging(verbose)
     files = utils.get_bam_files(input)
