@@ -214,7 +214,7 @@ def process_convert_bam(cp):
         query_name = None
 
         while True:
-            alignment = alignment_file.next()
+            alignment = alignment_file.__next__()
 
             all_alignments += 1
 

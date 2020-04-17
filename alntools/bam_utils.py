@@ -255,7 +255,7 @@ def process_convert_bam(cp):
                 query_name = None
 
                 while True:
-                    alignment = alignment_file.next()
+                    alignment = alignment_file.__next__()
 
                     all_alignments += 1
 
@@ -408,7 +408,7 @@ def process_range_bam(rp):
             main_targets[t] = len(main_targets)
 
         while True:
-            alignment = alignment_file.next()
+            alignment = alignment_file.__next__()
 
             all_alignments += 1
 
@@ -1153,7 +1153,7 @@ try:
     i = 1
     while True:
         tell = aln_file.tell()
-        aln = aln_file.next()
+        aln = aln_file.__next__()
         data = bgzf.split_virtual_offset(tell)
         fhout.write("{}\t{}\t{}\t{}\t{}\t{}\n".format(i, data[0], data[1], tell, aln.qname, aln.tid))
         i += 1
@@ -1217,7 +1217,7 @@ def calculate_chunks(filename, num_chunks):
             index = div * i + min(i, mod)
             virtual_offset = bgzf.make_virtual_offset(block_offsets[index], 0)
             aln_file.seek(virtual_offset)
-            aln = aln_file.next()
+            aln = aln_file.__next__()
             aln_qname = aln.query_name
 
             # added because some query_name had spaces
@@ -1230,7 +1230,7 @@ def calculate_chunks(filename, num_chunks):
             while aln_first_qname == aln_qname:
 
                 virtual_offset = aln_file.tell()
-                aln = aln_file.next()
+                aln = aln_file.__next__()
                 aln_qname = aln.query_name
                 i = aln_qname.find(' ')
                 if i > 0:
