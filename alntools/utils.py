@@ -197,7 +197,7 @@ def truncate_file(file_name, bytes_from_end):
         file_name (str): The name of the file.
         bytes_from_end (int): Number of bytes from end of file.
     """
-    f = open(file_name, 'r+')
+    f = open(file_name, 'rb+')
     f.seek(-1 * bytes_from_end, os.SEEK_END)
     f.truncate()
     f.close()
