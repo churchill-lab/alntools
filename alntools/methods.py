@@ -190,9 +190,21 @@ def parsefastqtest(input_file, chunks, dir):
     LOG.info("FAstq file parsed in {}".format(utils.format_time(start_time, time.time())))
 
 
-def dumpec(ec_file):
-    ECF = bin_file.ECFile(ec_file)
+def ecdump(ec_file):
+    bin_utils.ecdump(ec_file)
 
 
-def ec2apm(ec_file, apm_file):
-    bin_utils.bin2apm(ec_file, apm_file)
+def ecmerge(input_files, out_file):
+    bin_utils.ecmerge(input_files, out_file)
+
+
+def ec2emase(ec_file, emase_file):
+    bin_utils.ec2emase(ec_file, emase_file)
+
+
+def emase2ec(emase_file, ec_file):
+    bin_utils.emase2ec(emase_file, ec_file)
+
+
+def apply_genotypes(ec_file, gt_file, grp_file, out_file):
+    bin_utils.apply_genotypes(ec_file, gt_file, grp_file, out_file)

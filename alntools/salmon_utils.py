@@ -142,5 +142,5 @@ def convert(salmon_dir, ec_filename, sample, target_filename=None):
 
     time1 = time.time()
     LOG.info("Converting and storing to {}".format(ec_filename))
-    bin_utils.save(ec_filename, sample, haplotypes, transcripts, transcript_lengths, alnmat, cntmat)
+    bin_utils.ecsave(ec_filename, [sample], haplotypes, transcripts, transcript_lengths, alnmat, cntmat)
     LOG.info("{} created in {}".format(ec_filename, utils.format_time(time1, time.time())))

@@ -2,6 +2,8 @@
 import copy
 import tables
 from struct import pack, unpack
+from itertools import dropwhile
+
 import numpy as np
 from scipy.sparse import lil_matrix, coo_matrix, csc_matrix, csr_matrix
 from alntools.matrix.Sparse3DMatrix import Sparse3DMatrix
@@ -16,13 +18,17 @@ def enum(**enums):
     return type('Enum', (), enums)
 
 
+def is_comment(s):
+    return s.startswith('#')
+
+
 class AlignmentPropertyMatrix(Sparse3DMatrix):
 
     Axis = enum(LOCUS=0, HAPLOTYPE=1, READ=2, GROUP=3, HAPLOGROUP=4)
 
     def __init__(self, 
                  other=None,
-                 binfile=None,
+                 ecfile=None,
                  h5file=None, datanode='/', metanode='/', shallow=False,
                  shape=None, dtype=float, haplotype_names=None, locus_names=None, read_names=None, sample_names=None,
                  grpfile=None):
@@ -53,10 +59,10 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                 self.__copy_names(other)
                 self.__copy_group_info(other)
 
-        elif binfile is not None:
-            with open(binfile, 'rb') as f:
-                bin_format = unpack('<i', f.read(4))[0]
-                if bin_format == 2:
+        elif ecfile is not None:
+            with open(ecfile, 'rb') as f:
+                ecformat = unpack('<i', f.read(4))[0]
+                if ecformat == 2:
                     self.num_haplotypes = unpack('<i', f.read(4))[0]
                     hname = list()
                     for hidx in range(self.num_haplotypes):
@@ -107,9 +113,9 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                         self.count = self.count.todense().A.flatten()
                     self.shape = (self.num_loci, self.num_haplotypes, self.num_reads)
                     self.finalize()
-                elif bin_format == 1:
+                elif ecformat == 1:
                     raise NotImplementedError
-                elif bin_format == 0:
+                elif ecformat == 0:
                     raise TypeError('Format 0 is not supported anymore.')
  
         elif h5file is not None:  # Use for loading from a pytables file
@@ -472,6 +478,30 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             return dmat
         else:
             raise RuntimeError('Both matrices must be finalized.')
+
+    def apply_genotypes(self, gt_file):
+        hid = dict(zip(self.hname, np.arange(self.num_haplotypes)))
+        gid = dict(zip(self.gname, np.arange(len(self.gname))))
+        gtmask = np.zeros((self.num_haplotypes, self.num_loci))
+        with open(gt_file) as fh:
+            if self.groups is not None:
+                for curline in dropwhile(is_comment, fh):
+                    item = curline.rstrip().split("\t")
+                    g, gt = item[:2]
+                    hid2set = np.array([hid[c] for c in gt])
+                    tid2set = np.array(self.groups[gid[g]])
+                    I, J = np.meshgrid(hid2set, tid2set, indexing='ij')
+                    gtmask[I, J] = 1.0
+            else:
+                for curline in dropwhile(is_comment, fh):
+                    item = curline.rstrip().split("\t")
+                    g, gt = item[:2]
+                    hid2set = np.array([hid[c] for c in gt])
+                    I, J = np.meshgrid(hid2set, gid[g], indexing='ij')
+                    gtmask[I, J] = 1.0
+        self.multiply(gtmask, axis=2)
+        for h in xrange(self.num_haplotypes):
+            self.data[h].eliminate_zeros()
 
     def save(self, h5file, title=None, index_dtype='uint32', data_dtype=float, incidence_only=True, complib='zlib', shallow=False):
         Sparse3DMatrix.save(self, h5file=h5file, title=title, index_dtype=index_dtype, data_dtype=data_dtype, incidence_only=incidence_only, complib=complib)
