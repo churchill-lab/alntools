@@ -122,13 +122,13 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             h5fh = tables.open_file(h5file, 'r')
             if not shallow:
                 self.hname = h5fh.get_node_attr(datanode, 'hname')
-                self.lname = h5fh.get_node(metanode, 'lname').read()
+                self.lname = np.char.decode(h5fh.get_node(metanode, 'lname').read(), 'utf-8')
                 self.lid = dict(zip(self.lname, np.arange(self.num_loci)))
                 if h5fh.__contains__('%s' % (metanode + '/rname')):
-                    self.rname = h5fh.get_node(metanode, 'rname').read()
+                    self.rname = np.char.decode(h5fh.get_node(metanode, 'rname').read(), 'utf-8')
                     self.rid = dict(zip(self.rname, np.arange(self.num_reads)))
                 if h5fh.__contains__('%s' % (metanode + '/sname')):
-                    self.sname = h5fh.get_node(metanode, 'sname').read()
+                    self.sname = np.char.decode(h5fh.get_node(metanode, 'sname').read(), 'utf-8')
                     self.sid = dict(zip(self.sname, np.arange(self.num_samples)))
                     self.num_samples = len(self.sname)
             if h5fh.__contains__('%s' % (datanode + '/count')):
