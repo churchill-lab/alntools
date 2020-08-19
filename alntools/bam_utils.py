@@ -825,7 +825,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, number_proc
         apm = APM(shape=new_shape,
                   haplotype_names=haplotypes,
                   locus_names=main_targets.keys(),
-                  read_names=ec_ids,
+                  read_names=ec_ids.astype(str),
                   sample_names=[sample])
 
         for h in xrange(0, len(haplotypes)):

@@ -230,7 +230,7 @@ def ecsave2(ec_filename, apm):
 
         # DATA
         LOG.debug("A MATRIX: LENGTH DATA: {:,}".format(len(alnmat.data)))
-        f.write(pack('<{}i'.format(len(alnmat.data)), *alnmat.data))
+        f.write(pack('<{}i'.format(len(alnmat.data)), *alnmat.data.astype(int)))
         # LOG.error(alnmat.data)
 
         #
