@@ -102,6 +102,181 @@ def ecload(ec_filename):
             raise TypeError('Format 0 is not supported anymore.')
 
 
+#def ecsave2(ec_filename, samples, haplotypes, main_targets, main_target_lengths, alnmat, cntmat):
+def ecsave2(ec_filename, apm):
+    with open(ec_filename, 'wb') as f:
+        # format
+        f.write(pack('<i', 2))
+        LOG.debug("FORMAT: 2")
+
+        #
+        # SECTION: HAPLOTYPES
+        #     [# of HAPLOTYPES = H]
+        #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
+        #     ...
+        #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
+        #
+        # Example:
+        #     8
+        #     1 A
+        #     1 B
+        #     1 C
+        #     1 D
+        #     1 E
+        #     1 F
+        #     1 G
+        #     1 H
+        #
+
+        LOG.info("Number of haplotypes: {:,}".format(apm.num_haplotypes))
+        f.write(pack('<i', apm.num_haplotypes))
+        for idx, hap in enumerate(apm.hname):
+            #LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+            f.write(pack('<i', len(hap)))
+            f.write(pack('<{}s'.format(len(hap)), hap.encode('utf-8')))
+
+        #
+        # SECTION: TARGETS
+        #     [# of TARGETS = T]
+        #     [length TARGET 1 text][TARGET 1 text][HAP 1 length] ... [HAP H length]
+        #     ...
+        #     [length TARGET T text][TARGET T text][HAP 1 length] ... [HAP H length]
+        #
+        # Example:
+        #     80000
+        #     18 ENSMUST00000156068 234 235
+        #     18 ENSMUST00000209341 1054 1054
+        #     ...
+        #     18 ENSMUST00000778019 1900 1890
+        #
+
+        LOG.info("Number of reference targets: {:,}".format(apm.num_loci))
+        f.write(pack('<i', apm.num_loci))
+        for idx, main_target in enumerate(apm.lname):
+            f.write(pack('<i', len(main_target)))
+            f.write(pack('<{}s'.format(len(main_target)), main_target.encode('utf-8')))
+            for idx_hap, hap in enumerate(apm.hname):
+                f.write(pack('<i', apm.lengths[idx, idx_hap]))  # TODO: store as double (Fix emase-zero too)
+
+        #
+        # SECTION: CRS
+        #     [# of CRS = 1]
+        #     [length of CR 1 text][CR 1 text]
+        #
+        # Example:
+        #     1
+        #     8 SAMPLEID
+        #
+
+        # LOG.info("NUMBER OF SAMPLES: 1")
+        # f.write(pack('<i', 1))
+        # f.write(pack('<i', len(samples)))
+        # f.write(pack('<{}s'.format(len(samples)), samples.encode('utf-8')))
+
+        LOG.info("Number of samples: {:,}".format(apm.num_samples))
+        f.write(pack('<i', apm.num_samples))
+        for sample in apm.sname:
+            f.write(pack('<i', len(sample)))
+            f.write(pack('<{}s'.format(len(sample)), sample.encode('utf-8')))
+
+
+        #
+        # SECTION: ALIGNMENT MAPPINGS ("A" Matrix)
+        #     [# of ALIGNMENT MAPPINGS (AM) = A]
+        #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 1)
+        #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM 2)
+        #     ...
+        #     [EC INDEX][TRANSCRIPT INDEX][HAPLOTYPE flag] (for AM A)
+        #
+        # NOTE:
+        #     HAPLOTYPE flag is an integer that denotes which haplotype
+        #     (allele) a read aligns to given an EC. For example, 00, 01,
+        #     10, and 11 can specify whether a read aligns to the 1st
+        #     and/or 2nd haplotype of a transcript.  These binary numbers
+        #     are converted to integers - 0, 1, 2, 3 - and stored as the
+        #     haplotype flag.
+        #
+        # Example:
+        #     5000
+        #     1 2 4
+        #     8 2 1
+        #     ...
+        #     100 200 8
+        #
+
+        LOG.info("Saving alignment incidence matrix...")
+        alnmat = apm.data[0]
+        for h in xrange(1, apm.num_haplotypes):
+            alnmat = alnmat + ((2 ** h) * apm.data[h])
+        alnmat = alnmat.tocsr()
+
+        LOG.debug("A MATRIX: INDPTR LENGTH {:,}".format(len(alnmat.indptr)))
+        f.write(pack('<i', len(alnmat.indptr)))
+
+        # NON ZEROS
+        LOG.debug("A MATRIX: NUMBER OF NON ZERO: {:,}".format(alnmat.nnz))
+        f.write(pack('<i', alnmat.nnz))
+
+        # ROW OFFSETS
+        LOG.debug("A MATRIX: LENGTH INDPTR: {:,}".format(len(alnmat.indptr)))
+        f.write(pack('<{}i'.format(len(alnmat.indptr)), *alnmat.indptr))
+        # LOG.error(alnmat.indptr)
+
+        # COLUMNS
+        LOG.debug("A MATRIX: LENGTH INDICES: {:,}".format(len(alnmat.indices)))
+        f.write(pack('<{}i'.format(len(alnmat.indices)), *alnmat.indices))
+        # LOG.error(alnmat.indices)
+
+        # DATA
+        LOG.debug("A MATRIX: LENGTH DATA: {:,}".format(len(alnmat.data)))
+        f.write(pack('<{}i'.format(len(alnmat.data)), *alnmat.data))
+        # LOG.error(alnmat.data)
+
+        #
+        # SECTION: "N" Matrix
+        #
+        # "N" Matrix format is EC (rows) by CRS (columns) with
+        # each value being the EC count.
+        #
+        # Instead of storing a "dense" matrix, we store a "sparse"
+        # matrix utilizing Compressed Sparse Column (CSC) format.
+        #
+
+        LOG.info("Saving EC count matrix...")
+        if not isinstance(apm.count, csc_matrix):
+            if apm.num_samples > 1:
+                apm.count = csc_matrix(apm.count)
+            else:
+                if len(apm.count.shape) > 1:
+                    apm.count = csc_matrix(apm.count)
+                else:
+                    apm.count = csr_matrix(apm.count).T
+            apm.count.eliminate_zeros()
+            LOG.info('N matrix converted to csc_matrix.')
+
+        LOG.debug("N MATRIX: NUMBER OF EQUIVALENCE CLASSES: {:,}".format(apm.count.shape[0]))
+        LOG.debug("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
+        f.write(pack('<i', len(apm.count.indptr)))
+
+        # NON ZEROS
+        LOG.debug("N MATRIX: NUMBER OF NON ZERO: {:,}".format(apm.count.nnz))
+        f.write(pack('<i', apm.count.nnz))
+
+        # ROW OFFSETS
+        LOG.debug("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
+        f.write(pack('<{}i'.format(len(apm.count.indptr)), *apm.count.indptr))
+
+        # COLUMNS
+        LOG.debug("N MATRIX: LENGTH INDICES: {:,}".format(len(apm.count.indices)))
+        f.write(pack('<{}i'.format(len(apm.count.indices)), *apm.count.indices))
+
+        # DATA
+        LOG.debug("N MATRIX: LENGTH DATA: {:,}".format(len(apm.count.data)))
+        f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
+
+    LOG.info("Saving completed")
+
+
 def ecsave(ec_filename, samples, haplotypes, main_targets, main_target_lengths, alnmat, cntmat):
     with open(ec_filename, 'wb') as f:
         # format
@@ -832,19 +1007,21 @@ def emase2ec(emase_filename, ec_filename):
             pass
 
         LOG.info("Saving to {}...".format(ec_filename))
-        ecalnmat = alnmat.data[0].copy()
-        for h in range(1, alnmat.num_haplotypes):
-           ecalnmat = ecalnmat + ((2 ** h) * alnmat.data[h])
+        # ecalnmat = alnmat.data[0].copy()
+        # for h in range(1, alnmat.num_haplotypes):
+        #    ecalnmat = ecalnmat + ((2 ** h) * alnmat.data[h])
 
         #
         # NOTE: Alignment incidence matrix is csc_matrix in EMASE format traditionally, 
         #       but is csr_matrix in binary EC format
         #
 
-        if alnmat.num_samples > 1:
-            ecsave(ec_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), alnmat.count)
-        else:
-            ecsave(ec_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), csr_matrix(alnmat.count).T)
+        # if alnmat.num_samples > 1:
+        #     ecsave(ec_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), alnmat.count)
+        # else:
+        #     ecsave(ec_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), csr_matrix(alnmat.count).T)
+        
+        ecsave2(ec_filename, alnmat)
         LOG.info("{} created in total time: {}".format(ec_filename, utils.format_time(start_time, time.time())))
 
     except Exception as e:
@@ -860,13 +1037,14 @@ def apply_genotypes(ec_filename, gt_filename, grp_filename, out_filename):
         LOG.info("Applying genotypes to the alignment profile...")
         alnmat.apply_genotypes(gt_filename)
         LOG.info("Saviing to {}...".format(out_filename))
-        ecalnmat = alnmat.data[0].copy()
-        for h in range(1, alnmat.num_haplotypes):
-           ecalnmat = ecalnmat + ((2 ** h) * alnmat.data[h])
-        if alnmat.num_samples > 1:
-            ecsave(out_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), alnmat.count)
-        else:
-            ecsave(out_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), csr_matrix(alnmat.count).T)
+        # ecalnmat = alnmat.data[0].copy()
+        # for h in range(1, alnmat.num_haplotypes):
+        #    ecalnmat = ecalnmat + ((2 ** h) * alnmat.data[h])
+        # if alnmat.num_samples > 1:
+        #     ecsave(out_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), alnmat.count)
+        # else:
+        #     ecsave(out_filename, alnmat.sname, alnmat.hname, alnmat.lname, alnmat.lengths, ecalnmat.tocsr(), csr_matrix(alnmat.count).T)
+        ecsave2(out_filename, alnmat)
         LOG.info("{} created in total time: {}".format(out_filename, utils.format_time(start_time, time.time())))
                                                            
     except Exception as e:

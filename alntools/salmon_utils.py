@@ -29,7 +29,7 @@ LOG = utils.get_logger()
 
 
 def parse_salmon_ec(salmon_dir, target_filename=None):
-
+    
     LOG.debug('-------------------------------------------')
     LOG.debug('Parameters:')
     LOG.debug('  SALMON directory: {}'.format(salmon_dir))
@@ -126,6 +126,108 @@ def parse_salmon_ec(salmon_dir, target_filename=None):
     return transcripts, haplotypes, alnmat, cntmat, transcript_lengths
 
 
+# def parse_salmon_ec(salmon_dir, target_filename=None):
+def parse_salmon_ec2(salmon_dir, target_filename=None):
+    
+    LOG.debug('-------------------------------------------')
+    LOG.debug('Parameters:')
+    LOG.debug('  SALMON directory: {}'.format(salmon_dir))
+    LOG.debug('  Target file: {}'.format(target_filename))
+    LOG.debug('-------------------------------------------')
+
+    alnmat = APM()
+
+    if target_filename is not None:
+        LOG.info('Reading in the reference transcript IDs from {}'.format(target_filename))
+        transcripts_full = np.loadtxt(target_filename, dtype=str, delimiter='\t', usecols=(0,))
+
+    transcript_idx = OrderedDict()
+    haplotype_idx = OrderedDict()
+    tidx2coord = OrderedDict()
+    targets = list()
+    quant_file = os.path.join(salmon_dir, 'quant.sf')
+    salmon_file = os.path.join(salmon_dir, 'aux_info', 'eq_classes.txt')
+    with open(salmon_file) as fh:
+        LOG.info("Parsing {}".format(salmon_file))
+        alnmat.num_loci = int(fh.readline())
+        alnmat.num_reads = int(fh.readline())
+        tidx = 0
+        hidx = 0
+        for _ in range(alnmat.num_loci):
+            curline = fh.readline()
+            tkey = curline.rstrip()
+            targets.append(tkey)
+            tgt, hap = tkey.split('_')
+            if not tgt in transcript_idx:
+                transcript_idx[tgt] = tidx
+                tidx += 1
+            if not hap in haplotype_idx:
+                haplotype_idx[hap] = hidx
+                hidx += 1
+        if target_filename is not None:
+            for tgt in transcripts_full:
+                if not tgt in transcript_idx:
+                    transcript_idx[tgt] = tidx
+                    tidx += 1
+        for tidx, tkey in enumerate(targets):
+            tgt, hap = tkey.split('_')
+            tidx2coord[tidx] = [transcript_idx[tgt], haplotype_idx[hap]]
+
+        alnmat.num_haplotypes = len(haplotype_idx)
+        alnmat.num_samples = 1
+
+        LOG.info('Reading in the effective transcript lengths from {}'.format(quant_file))
+        targets = dict(zip(targets, np.arange(alnmat.num_loci)))
+        with open(quant_file) as qfh:
+            qfh.readline()
+            for curline in qfh:
+                item = curline.rstrip().split('\t')
+                tidx2coord[targets[item[0]]].append(float(item[2]))
+
+        LOG.info('Creating EC alignment incidence matrix')
+        rowid = list()
+        colid = list()
+        for h in range(alnmat.num_haplotypes):
+            rowid.append(list())
+            colid.append(list())
+
+        ecidx = 0
+        ec_counts = list()
+        for curline in fh:
+            item = curline.rstrip().split('\t')
+            ec_counts.append(int(item[-1]))
+            for ecitem in item[1:-1]:
+                tidx, hidx, _ = tidx2coord[int(ecitem)]
+                rowid[hidx].append(ecidx)
+                colid[hidx].append(tidx)
+            ecidx += 1
+
+        for h in range(alnmat.num_haplotypes):
+            alnmat.data.append(coo_matrix((np.ones(len(rowid[h])), (rowid[h], colid[h])), shape=(alnmat.num_reads, alnmat.num_loci), dtype=int))
+        for h in range(alnmat.num_haplotypes):
+            alnmat.data[h] = alnmat.data[h].tocsr()
+
+        # alnmat = data[0]
+        # for h in range(1, alnmat.num_haplotypes):
+        #    alnmat = alnmat + ((2 ** h) * data[h])
+
+        LOG.info('Creating EC count matrix')
+        ec_counts = np.array(ec_counts)
+        alnmat.count = csr_matrix(ec_counts).transpose()  # Note: This is eventually a csc_matrix
+
+        LOG.info('Creating objects of meta data')
+        alnmat.lengths = np.zeros((alnmat.num_loci, alnmat.num_haplotypes), dtype=int)
+        for _, tinfo in tidx2coord.items():
+            alnmat.lengths[tinfo[0], tinfo[1]] = tinfo[2]
+        #transcript_lengths[transcript_lengths < 1] = 1.0
+        alnmat.hname = np.array(list(haplotype_idx.keys()))
+        alnmat.lname = np.array(list(transcript_idx.keys()))
+
+    LOG.info('Parsing complete')
+    # return transcripts, haplotypes, alnmat, cntmat, transcript_lengths
+    return alnmat
+
+
 def convert(salmon_dir, ec_filename, sample, target_filename=None):
 
     LOG.debug('-------------------------------------------')
@@ -143,4 +245,27 @@ def convert(salmon_dir, ec_filename, sample, target_filename=None):
     time1 = time.time()
     LOG.info("Converting and storing to {}".format(ec_filename))
     bin_utils.ecsave(ec_filename, [sample], haplotypes, transcripts, transcript_lengths, alnmat, cntmat)
+    LOG.info("{} created in {}".format(ec_filename, utils.format_time(time1, time.time())))
+
+
+def convert2(salmon_dir, ec_filename, sample, target_filename=None):
+    
+    LOG.debug('-------------------------------------------')
+    LOG.debug('Parameters:')
+    LOG.debug('  SALMON directory: {}'.format(salmon_dir))
+    LOG.debug('  EC file: {}'.format(ec_filename))
+    LOG.debug('  Sample: {}'.format(sample))
+    LOG.debug('  Target file: {}'.format(target_filename))
+    LOG.debug('-------------------------------------------')
+
+    time0 = time.time()
+    # transcripts, haplotypes, alnmat, cntmat, transcript_lengths = parse_salmon_ec(salmon_dir, target_filename)
+    alnmat = parse_salmon_ec(salmon_dir, target_filename)
+    alnmat.sname = [sample]
+    LOG.info("{} parsed in {}".format(ec_filename, utils.format_time(time0, time.time())))
+
+    time1 = time.time()
+    LOG.info("Converting and storing to {}".format(ec_filename))
+    # bin_utils.ecsave(ec_filename, [sample], haplotypes, transcripts, transcript_lengths, alnmat, cntmat)
+    bin_utils.ecsave(ec_filename, alnmat)
     LOG.info("{} created in {}".format(ec_filename, utils.format_time(time1, time.time())))
