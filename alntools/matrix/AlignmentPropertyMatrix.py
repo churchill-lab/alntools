@@ -139,7 +139,7 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
                     indptr = h5fh.get_node(nmat_node, 'indptr').read()
                     indices = h5fh.get_node(nmat_node, 'indices').read()
                     data = h5fh.get_node(nmat_node, 'data').read()
-                    self.count = csc_matrix((data, indices, indptr))
+                    self.count = csc_matrix((data, indices, indptr), dtype=np.float64)
                     self.num_samples = self.count.shape[1]
             if h5fh.__contains__('%s' % (datanode + '/lengths')):
                 self.lengths = h5fh.get_node(datanode, 'lengths').read()
