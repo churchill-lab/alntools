@@ -151,12 +151,13 @@ def ecsave2(ec_filename, apm):
         #
 
         LOG.info("Number of reference targets: {:,}".format(apm.num_loci))
+        apm.lengths = apm.lengths.astype(int)  # TODO: store as double (Fix emase-zero too)
         f.write(pack('<i', apm.num_loci))
         for idx, main_target in enumerate(apm.lname):
             f.write(pack('<i', len(main_target)))
             f.write(pack('<{}s'.format(len(main_target)), main_target.encode('utf-8')))
             for idx_hap, hap in enumerate(apm.hname):
-                f.write(pack('<i', apm.lengths[idx, idx_hap]))  # TODO: store as double (Fix emase-zero too)
+                f.write(pack('<i', apm.lengths[idx, idx_hap]))
 
         #
         # SECTION: CRS
