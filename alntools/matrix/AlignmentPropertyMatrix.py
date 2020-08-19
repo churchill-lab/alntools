@@ -514,6 +514,8 @@ class AlignmentPropertyMatrix(Sparse3DMatrix):
             if len(self.count.shape) == 1:  # count is a vector
                 h5fh.create_carray(h5fh.root, 'count', obj=self.count, title='Equivalence Class Counts', filters=fil)
             elif len(self.count.shape) == 2:  # count is 2-dim matrix
+                if not isinstance(self.count, csc_matrix):
+                    self.count = csc_matrix(self.count)
                 cgroup = h5fh.create_group(h5fh.root, 'count', 'Sparse matrix components for N matrix')
                 h5fh.create_carray(cgroup, 'indptr', obj=self.count.indptr.astype(index_dtype), filters=fil)
                 h5fh.create_carray(cgroup, 'indices', obj=self.count.indices.astype(index_dtype), filters=fil)

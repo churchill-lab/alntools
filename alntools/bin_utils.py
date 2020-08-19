@@ -273,7 +273,7 @@ def ecsave2(ec_filename, apm):
 
         # DATA
         LOG.debug("N MATRIX: LENGTH DATA: {:,}".format(len(apm.count.data)))
-        f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
+        f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data.astype(int)))
 
     LOG.info("Saving completed")
 
