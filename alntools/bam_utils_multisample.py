@@ -354,7 +354,7 @@ def wrapper_range(args):
 # +
 # quality
 
-def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_count=1, number_processes=-1, temp_dir=None, range_filename=None, target_filename=None):
+def convert(bam_filename, ec_filename, emase_filename, num_chunks, minimum_count, number_processes, temp_dir, range_filename, target_filename):
     """
     """
     LOG.debug('Parameters')
@@ -385,7 +385,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
         num_processes = multiprocessing.cpu_count()
         num_processes = min(num_processes, len(bam_files))
     else:
-        num_processes = number_processes
+        num_processes = min(number_processes, len(bam_files))
 
     if not temp_dir:
         if emase_filename:

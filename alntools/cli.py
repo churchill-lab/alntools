@@ -45,9 +45,9 @@ def split(bam_file, number, directory, verbose):
 @click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False, writable=True))
 @click.option('-c', '--chunks', default=0, help="number of chunks to process")
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
-@click.option('-m', '--mincount', default=2000, help="minimum count")
+@click.option('-m', '--mincount', default=1000, help="minimum count")
 @click.option('--multisample', is_flag=True)
-@click.option('-p', '--number_processes', default=-1, help="number of processes")
+@click.option('-p', '--number-processes', default=-1, help="number of processes")
 @click.option('--rangefile', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True), help="range file")
 @click.option('-s', '--sample', help="sample identifier")
 @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
@@ -73,7 +73,7 @@ def bam2ec(bam_file, ec_file, chunks, directory, mincount, multisample, number_p
 @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
 @click.option('-m', '--mincount', default=2000, help="minimum count")
 @click.option('--multisample', is_flag=True)
-@click.option('-p', '--number_processes', default=-1, help="number of processes")
+@click.option('-p', '--number-processes', default=-1, help="number of processes")
 @click.option('--rangefile', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True), help="range file")
 @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
 @click.option('-v', '--verbose', count=True, help='enables verbose mode')
@@ -105,7 +105,7 @@ def ec2emase(ec_file, emase_file, verbose):
 @click.argument('emase_file', metavar='emase_file', type=click.Path(exists=True, resolve_path=True, dir_okay=False))
 @click.argument('ec_file', metavar='ec_file', type=click.Path(resolve_path=True, dir_okay=False))
 @click.option('-v', '--verbose', count=True, help='enables verbose mode')
-def ec2emase(emase_file, ec_file, verbose):
+def emase2ec(emase_file, ec_file, verbose):
     """
     Convert an EMASE format file (emase_file) to a binary EC format (ec_file)
     """
@@ -121,7 +121,7 @@ def ec2emase(emase_file, ec_file, verbose):
 # @click.option('-d', '--directory', type=click.Path(exists=True, resolve_path=True, file_okay=False, dir_okay=True, writable=True), help="temp directory")
 # @click.option('-m', '--mincount', default=2000, help="minimum count")
 # @click.option('--multisample', is_flag=True)
-# @click.option('-p', '--number_processes', default=-1, help="number of processes")
+# @click.option('-p', '--number-processes', default=-1, help="number of processes")
 # @click.option('--rangefile', type=click.Path(exists=False, resolve_path=True, file_okay=True, dir_okay=False, writable=True), help="range file")
 # @click.option('-s', '--sample', help="sample identifier")
 # @click.option('-t', '--targets', metavar='FILE', type=click.Path(exists=True, resolve_path=True, file_okay=True, dir_okay=False), help="target file")
