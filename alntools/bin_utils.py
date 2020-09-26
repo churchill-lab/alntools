@@ -102,7 +102,6 @@ def ecload(ec_filename):
             raise TypeError('Format 0 is not supported anymore.')
 
 
-#def ecsave2(ec_filename, samples, haplotypes, main_targets, main_target_lengths, alnmat, cntmat):
 def ecsave2(ec_filename, apm):
     with open(ec_filename, 'wb') as f:
         # format
