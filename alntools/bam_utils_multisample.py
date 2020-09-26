@@ -754,6 +754,8 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                   read_names=ec_ids.astype(str),
                   sample_names=list(CRS.keys()))
 
+        apm.lengths = main_target_lengths
+
         for h in xrange(0, len(haplotypes)):
             d = np.ones(len(ec_arr[h]), dtype=np.int32)
             apm.data[h] = coo_matrix((d, (ec_arr[h], target_arr[h])), shape=(len(final.ec), len(main_targets)))
@@ -816,7 +818,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
             temp_time = time.time()
             ecsave2(ec_filename, apm)
-            
+
             # num_haps = len(haplotypes)
             # summat = apm.data[0]
             # for h in xrange(1, num_haps):
