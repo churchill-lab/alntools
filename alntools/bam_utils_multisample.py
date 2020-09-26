@@ -745,6 +745,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
 
             indptr.append(indptr[-1] + a)
 
+        print('{}'.format(type(CRS.keys())))
         apm = APM(shape=new_shape,
                   haplotype_names=haplotypes,
                   locus_names=main_targets.keys(),
