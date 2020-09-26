@@ -16,6 +16,7 @@ import numpy as np
 import pysam
 
 from . import utils
+from .bin_utils import ecsave2 
 from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
 
 try:
@@ -805,9 +806,6 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                                                                utils.format_time(temp_time, time.time()),
                                                                utils.format_time(start_time, time.time())))
 
-        #
-        # TODO: Refactor using scsave method
-        #
         if ec_filename:
             LOG.info("Saving to {}...".format(ec_filename))
 
@@ -817,181 +815,183 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                 pass
 
             temp_time = time.time()
-            num_haps = len(haplotypes)
-            summat = apm.data[0]
-            for h in xrange(1, num_haps):
-                summat = summat + ((2 ** h) * apm.data[h])
+            ecsave2(ec_filename, apm)
+            
+            # num_haps = len(haplotypes)
+            # summat = apm.data[0]
+            # for h in xrange(1, num_haps):
+            #     summat = summat + ((2 ** h) * apm.data[h])
 
-            LOG.debug('summat.sum = {}'.format(summat.sum()))
-            LOG.debug('summat.max = {}'.format(summat.max()))
-            LOG.debug('summat = {}'.format(summat))
+            # LOG.debug('summat.sum = {}'.format(summat.sum()))
+            # LOG.debug('summat.max = {}'.format(summat.max()))
+            # LOG.debug('summat = {}'.format(summat))
 
-            LOG.debug("Matrix created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                                    utils.format_time(start_time, time.time())))
+            # LOG.debug("Matrix created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
+            #                                                         utils.format_time(start_time, time.time())))
 
-            temp_time = time.time()
+            # temp_time = time.time()
 
-            with open(ec_filename, 'wb') as f:
-                # FORMAT
-                f.write(pack('<i', 2))
-                LOG.debug("EC FORMAT: 2")
+            # with open(ec_filename, 'wb') as f:
+            #     # FORMAT
+            #     f.write(pack('<i', 2))
+            #     LOG.debug("EC FORMAT: 2")
 
-                #
-                # SECTION: HAPLOTYPES
-                #     [# of HAPLOTYPES = H]
-                #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
-                #     ...
-                #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
-                #
-                # Example:
-                #     8
-                #     1 A
-                #     1 B
-                #     1 C
-                #     1 D
-                #     1 E
-                #     1 F
-                #     1 G
-                #     1 H
-                #
+            #     #
+            #     # SECTION: HAPLOTYPES
+            #     #     [# of HAPLOTYPES = H]
+            #     #     [length of HAPLOTYPE 1 text][HAPLOTYPE 1 text]
+            #     #     ...
+            #     #     [length of HAPLOTYPE H text][HAPLOTYPE H text]
+            #     #
+            #     # Example:
+            #     #     8
+            #     #     1 A
+            #     #     1 B
+            #     #     1 C
+            #     #     1 D
+            #     #     1 E
+            #     #     1 F
+            #     #     1 G
+            #     #     1 H
+            #     #
 
-                LOG.debug("Number of haplotypes: {:,}".format(len(haplotypes)))
-                f.write(pack('<i', len(haplotypes)))
-                for idx, hap in enumerate(haplotypes):
-                    # LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
-                    f.write(pack('<i', len(hap)))
-                    f.write(pack('<{}s'.format(len(hap)), hap))
+            #     LOG.debug("Number of haplotypes: {:,}".format(len(haplotypes)))
+            #     f.write(pack('<i', len(haplotypes)))
+            #     for idx, hap in enumerate(haplotypes):
+            #         # LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
+            #         f.write(pack('<i', len(hap)))
+            #         f.write(pack('<{}s'.format(len(hap)), hap))
 
-                #
-                # SECTION: TARGETS
-                #     [# of TARGETS = T]
-                #     [length TARGET 1 text][TARGET 1 text][HAP 1 length] ... [HAP H length]
-                #     ...
-                #     [length TARGET T text][TARGET T text][HAP 1 length] ... [HAP H length]
-                #
-                # Example:
-                #     80000
-                #     18 ENSMUST00000156068 234
-                #     18 ENSMUST00000209341 1054
-                #     ...
-                #     18 ENSMUST00000778019 1900
-                #
+            #     #
+            #     # SECTION: TARGETS
+            #     #     [# of TARGETS = T]
+            #     #     [length TARGET 1 text][TARGET 1 text][HAP 1 length] ... [HAP H length]
+            #     #     ...
+            #     #     [length TARGET T text][TARGET T text][HAP 1 length] ... [HAP H length]
+            #     #
+            #     # Example:
+            #     #     80000
+            #     #     18 ENSMUST00000156068 234
+            #     #     18 ENSMUST00000209341 1054
+            #     #     ...
+            #     #     18 ENSMUST00000778019 1900
+            #     #
 
-                LOG.debug("Number of reference targets: {:,}".format(len(main_targets)))
-                f.write(pack('<i', len(main_targets)))
-                for (main_target, idx) in iteritems(main_targets):
-                    f.write(pack('<i', len(main_target)))
-                    f.write(pack('<{}s'.format(len(main_target)), main_target))
+            #     LOG.debug("Number of reference targets: {:,}".format(len(main_targets)))
+            #     f.write(pack('<i', len(main_targets)))
+            #     for (main_target, idx) in iteritems(main_targets):
+            #         f.write(pack('<i', len(main_target)))
+            #         f.write(pack('<{}s'.format(len(main_target)), main_target))
 
-                    #lengths = []
+            #         #lengths = []
 
-                    for idx_hap, hap in enumerate(haplotypes):
-                        length = main_target_lengths[idx, idx_hap]
-                        f.write(pack('<i', length))
-                        #lengths.append(str(length))
+            #         for idx_hap, hap in enumerate(haplotypes):
+            #             length = main_target_lengths[idx, idx_hap]
+            #             f.write(pack('<i', length))
+            #             #lengths.append(str(length))
 
-                    #LOG.debug("#{:,} --> {:,}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
+            #         #LOG.debug("#{:,} --> {:,}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
 
-                #
-                # SECTION: CRS
-                #     [# of CRS = C]
-                #     [length of CR 1 text][CR 1 text]
-                #     ...
-                #     [length of CR C text][CR C text]
-                #
-                # Example:
-                #     3
-                #     16 TCGGTAAAGCCGTCGT
-                #     16 GGAACTTAGCCGATTT
-                #     16 TAGTGGTAGAGGTAGA
-                #
+            #     #
+            #     # SECTION: CRS
+            #     #     [# of CRS = C]
+            #     #     [length of CR 1 text][CR 1 text]
+            #     #     ...
+            #     #     [length of CR C text][CR C text]
+            #     #
+            #     # Example:
+            #     #     3
+            #     #     16 TCGGTAAAGCCGTCGT
+            #     #     16 GGAACTTAGCCGATTT
+            #     #     16 TAGTGGTAGAGGTAGA
+            #     #
 
-                LOG.debug("Number of cells: {:,}".format(len(CRS)))
-                f.write(pack('<i', len(CRS)))
-                for (CR, idx) in iteritems(CRS):
-                    #LOG.debug("{:,}\t{}\t# {:,}".format(len(CR), CR, idx))
-                    f.write(pack('<i', len(CR)))
-                    f.write(pack('<{}s'.format(len(CR)), CR))
+            #     LOG.debug("Number of cells: {:,}".format(len(CRS)))
+            #     f.write(pack('<i', len(CRS)))
+            #     for (CR, idx) in iteritems(CRS):
+            #         #LOG.debug("{:,}\t{}\t# {:,}".format(len(CR), CR, idx))
+            #         f.write(pack('<i', len(CR)))
+            #         f.write(pack('<{}s'.format(len(CR)), CR))
 
-                #
-                # SECTION: "A" Matrix
-                #
-                # "A" Matrix format is EC (rows) by Transcripts (columns) with
-                # each value being the HAPLOTYPE flag.
-                #
-                # Instead of storing a "dense" matrix, we store a "sparse"
-                # matrix utilizing Compressed Sparse Row (CSR) format.
-                #
-                # NOTE:
-                #     HAPLOTYPE flag is an integer that denotes which haplotype
-                #     (allele) a read aligns to given an EC. For example, 00,
-                #     01, 10, and 11 can specify whether a read aligns to the
-                #     1st and/or 2nd haplotype of a transcript.  These binary
-                #     numbers are converted to integers - 0, 1, 2, 3 - and
-                #     stored as the haplotype flag.
-                #
+            #     #
+            #     # SECTION: "A" Matrix
+            #     #
+            #     # "A" Matrix format is EC (rows) by Transcripts (columns) with
+            #     # each value being the HAPLOTYPE flag.
+            #     #
+            #     # Instead of storing a "dense" matrix, we store a "sparse"
+            #     # matrix utilizing Compressed Sparse Row (CSR) format.
+            #     #
+            #     # NOTE:
+            #     #     HAPLOTYPE flag is an integer that denotes which haplotype
+            #     #     (allele) a read aligns to given an EC. For example, 00,
+            #     #     01, 10, and 11 can specify whether a read aligns to the
+            #     #     1st and/or 2nd haplotype of a transcript.  These binary
+            #     #     numbers are converted to integers - 0, 1, 2, 3 - and
+            #     #     stored as the haplotype flag.
+            #     #
 
-                LOG.info("Saving A matrix...")
+            #     LOG.info("Saving A matrix...")
 
-                num_mappings = summat.nnz
-                summat = summat.tocsr()
+            #     num_mappings = summat.nnz
+            #     summat = summat.tocsr()
 
-                LOG.debug("A MATRIX: INDPTR LENGTH {:,}".format(len(summat.indptr)))
-                f.write(pack('<i', len(summat.indptr)))
+            #     LOG.debug("A MATRIX: INDPTR LENGTH {:,}".format(len(summat.indptr)))
+            #     f.write(pack('<i', len(summat.indptr)))
 
-                # NON ZEROS
-                LOG.debug("A MATRIX: NUMBER OF NON ZERO: {:,}".format(num_mappings))
-                f.write(pack('<i', num_mappings))
+            #     # NON ZEROS
+            #     LOG.debug("A MATRIX: NUMBER OF NON ZERO: {:,}".format(num_mappings))
+            #     f.write(pack('<i', num_mappings))
 
-                # ROW OFFSETS
-                LOG.debug("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
-                f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
-                # LOG.error(summat.indptr)
+            #     # ROW OFFSETS
+            #     LOG.debug("A MATRIX: LENGTH INDPTR: {:,}".format(len(summat.indptr)))
+            #     f.write(pack('<{}i'.format(len(summat.indptr)), *summat.indptr))
+            #     # LOG.error(summat.indptr)
 
-                # COLUMNS
-                LOG.debug("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
-                f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
-                # LOG.error(summat.indices)
+            #     # COLUMNS
+            #     LOG.debug("A MATRIX: LENGTH INDICES: {:,}".format(len(summat.indices)))
+            #     f.write(pack('<{}i'.format(len(summat.indices)), *summat.indices))
+            #     # LOG.error(summat.indices)
 
-                # DATA
-                LOG.debug("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
-                f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
-                # LOG.error(summat.data)
+            #     # DATA
+            #     LOG.debug("A MATRIX: LENGTH DATA: {:,}".format(len(summat.data)))
+            #     f.write(pack('<{}i'.format(len(summat.data)), *summat.data))
+            #     # LOG.error(summat.data)
 
-                #
-                # SECTION: "N" Matrix
-                #
-                # "N" Matrix format is EC (rows) by CRS (columns) with
-                # each value being the EC count.
-                #
-                # Instead of storing a "dense" matrix, we store a "sparse"
-                # matrix utilizing Compressed Sparse Column (CSC) format.
-                #
+            #     #
+            #     # SECTION: "N" Matrix
+            #     #
+            #     # "N" Matrix format is EC (rows) by CRS (columns) with
+            #     # each value being the EC count.
+            #     #
+            #     # Instead of storing a "dense" matrix, we store a "sparse"
+            #     # matrix utilizing Compressed Sparse Column (CSC) format.
+            #     #
 
-                LOG.info("Saving N matrix...")
+            #     LOG.info("Saving N matrix...")
 
-                LOG.debug("N MATRIX: NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
-                LOG.debug("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
-                f.write(pack('<i', len(apm.count.indptr)))
+            #     LOG.debug("N MATRIX: NUMBER OF EQUIVALENCE CLASSES: {:,}".format(len(final.ec)))
+            #     LOG.debug("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
+            #     f.write(pack('<i', len(apm.count.indptr)))
 
-                # NON ZEROS
-                LOG.debug("N MATRIX: NUMBER OF NON ZERO: {:,}".format(apm.count.nnz))
-                f.write(pack('<i', apm.count.nnz))
+            #     # NON ZEROS
+            #     LOG.debug("N MATRIX: NUMBER OF NON ZERO: {:,}".format(apm.count.nnz))
+            #     f.write(pack('<i', apm.count.nnz))
 
-                # ROW OFFSETS
-                LOG.debug("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
-                f.write(pack('<{}i'.format(len(apm.count.indptr)), *apm.count.indptr))
-                # LOG.error(apm.count.indptr)
+            #     # ROW OFFSETS
+            #     LOG.debug("N MATRIX: LENGTH INDPTR: {:,}".format(len(apm.count.indptr)))
+            #     f.write(pack('<{}i'.format(len(apm.count.indptr)), *apm.count.indptr))
+            #     # LOG.error(apm.count.indptr)
 
-                # COLUMNS
-                LOG.debug("N MATRIX: LENGTH INDICES: {:,}".format(len(apm.count.indices)))
-                f.write(pack('<{}i'.format(len(apm.count.indices)), *apm.count.indices))
-                # LOG.error(apm.count.indices)
+            #     # COLUMNS
+            #     LOG.debug("N MATRIX: LENGTH INDICES: {:,}".format(len(apm.count.indices)))
+            #     f.write(pack('<{}i'.format(len(apm.count.indices)), *apm.count.indices))
+            #     # LOG.error(apm.count.indices)
 
-                # DATA
-                LOG.debug("N MATRIX: LENGTH DATA: {:,}".format(len(apm.count.data)))
-                f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
-                # LOG.error(apm.count.data)
+            #     # DATA
+            #     LOG.debug("N MATRIX: LENGTH DATA: {:,}".format(len(apm.count.data)))
+            #     f.write(pack('<{}i'.format(len(apm.count.data)), *apm.count.data))
+            #     # LOG.error(apm.count.data)
 
             LOG.info("{} created in {}, total time: {}".format(ec_filename,
                                                                utils.format_time(temp_time, time.time()),
