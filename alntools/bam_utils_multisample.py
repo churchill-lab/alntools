@@ -751,7 +751,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
                   haplotype_names=haplotypes,
                   locus_names=list(main_targets.keys()),
                   read_names=ec_ids.astype(str),
-                  sample_names=CRS.keys())
+                  sample_names=list(CRS.keys()))
 
         for h in xrange(0, len(haplotypes)):
             d = np.ones(len(ec_arr[h]), dtype=np.int32)
