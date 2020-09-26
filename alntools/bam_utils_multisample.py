@@ -688,7 +688,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
         # final.ec.values -> the number of times this equivalence class has appeared
 
         # ec_ids = [x for x in xrange(0, len(final.ec))]
-        ec_ids = np.arange(len(final.ec)).astype(str)
+        ec_ids = np.arange(len(final.ec))
         ec_arr = [[] for _ in xrange(0, len(haplotypes))]
         target_arr = [[] for _ in xrange(0, len(haplotypes))]
 
@@ -748,7 +748,7 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks=0, minimum_cou
         apm = APM(shape=new_shape,
                   haplotype_names=haplotypes,
                   locus_names=main_targets.keys(),
-                  read_names=ec_ids,
+                  read_names=ec_ids.astype(str),
                   sample_names=CRS.keys())
 
         for h in xrange(0, len(haplotypes)):
