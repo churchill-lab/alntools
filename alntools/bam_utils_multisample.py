@@ -1001,3 +1001,4 @@ def convert(bam_filename, ec_filename, emase_filename, num_chunks, minimum_count
 
     except KeyboardInterrupt as e:
         LOG.error("Error: {}".format(str(e)))
+        raise Exception(e)
