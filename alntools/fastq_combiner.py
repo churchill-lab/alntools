@@ -1,28 +1,30 @@
-# -*- coding: utf-8 -*-
-from collections import OrderedDict, namedtuple
-
+from collections import namedtuple
+from collections import OrderedDict
+from contextlib import closing
 import multiprocessing
 import os
 import sqlite3
 import struct
 import time
-from contextlib import closing
-from . import utils
 
 from Bio import bgzf
 import pysam
 
-try:
-    xrange
-except NameError:
-    xrange = range
+from alntools import utils
 
 lock = None
 
 LOG = utils.get_logger()
 
-parse_fields = ["header_size", "begin_read_offset", "begin_read_size", "file_offset", "file_bytes", "end_read_offset",
-                "end_read_size"]
+parse_fields = [
+    "header_size",
+    "begin_read_offset",
+    "begin_read_size",
+    "file_offset",
+    "file_bytes",
+    "end_read_offset",
+    "end_read_size",
+]
 ParseRecord = namedtuple("ParseRecord", parse_fields)
 
 
@@ -36,21 +38,26 @@ class ParseParams(object):
     #   - idx, vo_start, vo_end
 
     """
-    slots = ['input_file', 'target_file', 'temp_dir', 'process_id', 'data']
+
+    slots = ["input_file", "target_file", "temp_dir", "process_id", "data"]
 
     def __init__(self):
         self.input_file = None
         self.sql_file = None
         self.lock = None
         self.process_id = None
-        self.data = [] # tuple of (idx, ParseRecord)
+        self.data = []  # tuple of (idx, ParseRecord)
 
     def __str__(self):
-        return "Input: {}\nProcess ID: {}\nData: {}".format(self.input_file, self.process_id, self.data)
+        return (
+            f"Input: {self.input_file}\n"
+            f"Process ID: {self.process_id}\n"
+            f"Data: {self.data}"
+        )
 
 
 class ParseResults(object):
-    slots = ['read_ids']
+    slots = ["read_ids"]
 
     def __init__(self):
         self.read_ids = None
@@ -61,22 +68,22 @@ def process_parse_fastq(cp):
 
     :return:
     """
-    LOG.debug('Process ID: {}, Input File: {}'.format(cp.process_id, cp.input_file))
+    LOG.debug(f"Process ID: {cp.process_id}, Input File: {cp.input_file}")
 
-    temp_name = os.path.join(cp.temp_dir, '_fastq_parser.')
+    temp_name = os.path.join(cp.temp_dir, "_fastq_parser.")
 
     rec_count = 0
 
     data = []
 
-    SQL = '''
+    SQL = """
     CREATE TABLE IF NOT EXISTS mapping (
        read_id TEXT,
        sample_id TEXT
     );
-    '''
+    """
 
-    db_name = "process_{}.dbs".format(cp.process_id)
+    db_name = f"process_{cp.process_id}.dbs"
 
     try:
         for file_info_data in cp.data:
@@ -88,12 +95,17 @@ def process_parse_fastq(cp):
                 parse_record = file_info_data[1]
 
                 # must create the file
-                temp_file = "{}{}.bam".format(temp_name, idx)
-                LOG.debug("Process ID: {}, Creating alignment file: {}".format(cp.process_id, temp_file))
+                temp_file = f"{temp_name}{idx}.bam"
+                LOG.debug(
+                    f"Process ID: {cp.process_id}, Creating alignment "
+                    f"file: {temp_file}"
+                )
                 utils.delete_file(temp_file)
                 chunk_fastq_file(cp.input_file, temp_file, parse_record)
-                LOG.debug("Process ID: {}, Opening alignment file: {}".format(cp.process_id, temp_file))
-
+                LOG.debug(
+                    f"Process ID: {cp.process_id}, Opening alignment "
+                    f"file: {temp_file}"
+                )
 
                 with pysam.FastxFile(temp_file) as fh:
                     rec_count = 0
@@ -101,55 +113,51 @@ def process_parse_fastq(cp):
                         rec_count += 1
 
                         data.append((entry.name, entry.sequence))
-                        #print(entry.name)
-                        #print(entry.sequence)
-                        #print(entry.comment)
-                        #print(entry.quality)
-
                         if rec_count % 100000 == 0:
-                            #lock.acquire()
+                            # lock.acquire()
                             with closing(sqlite3.connect(db_name)) as conn:
                                 cursor = conn.cursor()
                                 cursor.execute(SQL)
-                                cursor.executemany("insert into mapping values (?,?)", data)
+                                cursor.executemany(
+                                    "insert into mapping values (?,?)", data
+                                )
                                 conn.commit()
-                            #lock.release()
+                            # lock.release()
 
                             data = []
-                            LOG.debug("Process ID: {}, File: {}, {:,} Fastx records processed".format(cp.process_id, temp_file, rec_count))
+                            LOG.debug(
+                                f"Process ID: {cp.process_id}, File: "
+                                f"{temp_file}, {rec_count:,} "
+                                "Fastx records processed"
+                            )
 
-                #lock.acquire()
+                # lock.acquire()
                 with closing(sqlite3.connect(db_name)) as conn:
                     cursor = conn.cursor()
                     cursor.execute(SQL)
                     cursor.executemany("insert into mapping values (?,?)", data)
                     conn.commit()
                     data = []
-                #lock.release()
-
+                # lock.release()
 
             except Exception as e1:
-                print 'ERROR'
-                print str(e1)
+                print("ERROR")
+                print(str(e1))
 
             LOG.info(
-                "DONE Process ID: {}, File: {}, {:,} Fastx records processed".format(
-                    cp.process_id, temp_file, rec_count))
+                f"DONE Process ID: {cp.process_id}, File: {temp_file}, "
+                f"{rec_count:,} Fastx records processed"
+            )
 
             utils.delete_file(temp_file)
 
     except Exception as e:
-        LOG.error("Error: {}".format(str(e)))
-
-    #haplotypes = sorted(list(haplotypes))
-
-    #LOG.debug("Process ID: {}, # Unique Reads: {:,}".format(cp.process_id, len(unique_reads)))
+        LOG.error(f"Error: {e}")
 
     ret = ParseResults()
     ret.read_ids = []
 
     return ret
-
 
 
 def wrapper_convert(args):
@@ -159,12 +167,14 @@ def wrapper_convert(args):
     :param args: the arguments to process_piece
     :return: the same as process_piece
     """
-    #print str(args)
+    # print str(args)
     return process_parse_fastq(*args)
+
 
 def init(l):
     global lock
     lock = l
+
 
 # barcode_file
 # read_id
@@ -175,9 +185,9 @@ def init(l):
 # read_id line = @ST-K00126:296:HCK57BBXX:7:1101:2889:1156 1:N:0:ACAGAGGT
 # read_id = ST-K00126:296:HCK57BBXX:7:1101:2889:1156
 
+
 def parse(fastq_filename, num_chunks=0, temp_dir=None):
-    """
-    """
+    """ """
     start_time = time.time()
 
     num_processes = multiprocessing.cpu_count()
@@ -186,28 +196,31 @@ def parse(fastq_filename, num_chunks=0, temp_dir=None):
         num_chunks = num_processes
     else:
         if num_chunks > 1000:
-            LOG.info("Modifying number of chunks from {} to 1000".format(num_chunks))
+            LOG.info(f"Modifying number of chunks from {num_chunks} to 1000")
             num_chunks = 1000
 
     if not temp_dir:
         temp_dir = os.path.dirname(fastq_filename)
 
-    LOG.info("Calculating {:,} chunks".format(num_chunks))
+    LOG.info(f"Calculating {num_chunks:,} chunks")
     temp_time = time.time()
     chunks = calculate_chunks(fastq_filename, num_chunks)
-    LOG.info("{:,} chunks calculated in {}, total time: {}".format(len(chunks),
-                                                                   utils.format_time(temp_time, time.time()),
-                                                                   utils.format_time(start_time, time.time())))
+    LOG.info(
+        f"{len(chunks):,} chunks calculated in "
+        f"{utils.format_time(temp_time, time.time())}, "
+        f"total time: {utils.format_time(start_time, time.time())}"
+    )
 
     # each core needs
 
     l = multiprocessing.Lock()
 
-
     all_params = []
 
     pid = 0
-    for temp_chunk_ids in utils.partition([idx for idx in xrange(num_chunks)], num_processes):
+    for temp_chunk_ids in utils.partition(
+        [idx for idx in range(num_chunks)], num_processes
+    ):
         params = ParseParams()
         params.input_file = fastq_filename
         params.temp_dir = temp_dir
@@ -218,91 +231,24 @@ def parse(fastq_filename, num_chunks=0, temp_dir=None):
 
         pid += 1
         all_params.append(params)
-        LOG.debug('params = {}'.format(str(params)))
+        LOG.debug(f"params = {params}")
 
     final = ParseResults()
     final.read_ids = OrderedDict()
 
-    LOG.info("Starting {} processes ...".format(num_processes))
+    LOG.info(f"Starting {num_processes} processes ...")
 
     temp_time = time.time()
     args = zip(all_params)
-    pool = multiprocessing.Pool(initializer=init, initargs=(l,), processes=num_processes)
+    pool = multiprocessing.Pool(
+        initializer=init, initargs=(l,), processes=num_processes
+    )
     results = pool.map(wrapper_convert, args)
 
-    LOG.info("All processes done in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                               utils.format_time(start_time, time.time())))
-
-    LOG.info("Combining {} results ...".format(len(results)))
-    temp_time = time.time()
-
-    # parse results
-    for idx, result in enumerate(results):
-        '''
-        LOG.info("Combining result #{}".format(idx))
-        if not final.init:
-            final = result
-            final.init = True
-        else:
-            # combine ec
-            LOG.debug("CHUNK {}: # Result Equivalence Classes: {:,}".format(idx, len(result.ec)))
-            for k, v in result.ec.iteritems():
-                if k in final.ec:
-                    final.ec[k] += v
-                else:
-                    final.ec[k] = v
-                    final.ec_idx[k] = len(final.ec_idx)
-            LOG.debug("CHUNK {}: # Total Equivalence Classes: {:,}".format(idx, len(final.ec)))
-
-            # combine haplotypes
-            LOG.debug("CHUNK {}: # Result Haplotypes: {:,}".format(idx, len(result.haplotypes)))
-            s1 = set(final.haplotypes)
-            s2 = set(result.haplotypes)
-            final.haplotypes = sorted(list(s1.union(s2)))
-            LOG.debug("CHUNK {}: # Total Haplotypes: {:,}".format(idx, len(final.haplotypes)))
-
-            # combine target_idx_to_main_target
-            LOG.debug("CHUNK {}: # Result Main Targets: {:,}".format(idx, len(result.main_targets)))
-            for k, v in result.target_idx_to_main_target.iteritems():
-                if k not in final.target_idx_to_main_target:
-                    final.target_idx_to_main_target[k] = v
-            LOG.debug("CHUNK {}: # Total Main Targets: {:,}".format(idx, len(final.main_targets)))
-
-            # unique reads
-            LOG.debug("CHUNK {}: # Result Unique Reads: {:,}".format(idx, len(result.unique_reads)))
-            for k, v in result.unique_reads.iteritems():
-                if k in final.unique_reads:
-                    final.unique_reads[k] += v
-                else:
-                    final.unique_reads[k] = v
-            LOG.debug("CHUNK {}: # Total Unique Reads: {:,}".format(idx, len(final.unique_reads)))
-
-            final.valid_alignments += result.valid_alignments
-            final.all_alignments += result.all_alignments
-
-            if range_filename:
-                # tid_stats
-                for k, v in result.tid_ranges.iteritems():
-                    if k in final.tid_ranges:
-                        n = final.tid_ranges[k][0]
-                        x = final.tid_ranges[k][1]
-                        final.tid_ranges[k] = (min(v[0], n), max(v[1], x))
-                    else:
-                        final.tid_ranges[k] = v
-
-        LOG.debug("CHUNK {}: results combined in {}, total time: {}".format(idx, utils.format_time(temp_time, time.time()),
-                 utils.format_time(start_time, time.time())))
-        '''
-
-    LOG.info("All results combined in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-             utils.format_time(start_time, time.time())))
-
-    #LOG.info("# Total Alignments: {:,}".format(final.all_alignments))
-    #LOG.info("# Valid Alignments: {:,}".format(final.valid_alignments))
-    #LOG.info("# Main Targets: {:,}".format(len(final.main_targets)))
-    #LOG.info("# Haplotypes: {:,}".format(len(final.haplotypes)))
-    #LOG.info("# Equivalence Classes: {:,}".format(len(final.ec)))
-    #LOG.info("# Unique Reads: {:,}".format(len(final.unique_reads)))
+    LOG.info(
+        f"All processes done in {utils.format_time(temp_time, time.time())}, "
+        f"total time: {utils.format_time(start_time, time.time())}"
+    )
 
 
 def split_fastq(filename, n, directory=None):
@@ -317,38 +263,42 @@ def split_fastq(filename, n, directory=None):
     """
     start_time = time.time()
 
-    LOG.debug("FASTQ File: {}".format(filename))
-    LOG.debug("Number of Files: {}".format(n))
+    LOG.debug(f"FASTQ File: {filename}")
+    LOG.debug(f"Number of Files: {n}")
 
     if not directory:
         directory = os.path.dirname(filename)
 
-    LOG.debug("Output Directory: {}".format(directory))
+    LOG.debug(f"Output Directory: {directory}")
 
     bam_basename = os.path.basename(filename)
     bam_prefixname, bam_extension = os.path.splitext(bam_basename)
     bam_output_temp = os.path.join(directory, bam_prefixname)
 
-    LOG.info("Calculating {:,} chunks...".format(n))
+    LOG.info(f"Calculating {n:,} chunks...")
     temp_time = time.time()
     chunks = calculate_chunks(filename, n)
-    LOG.info("{:,} chunks calculated in {}, total time: {}".format(len(chunks),
-                                                                   utils.format_time(temp_time, time.time()),
-                                                                   utils.format_time(start_time, time.time())))
+    LOG.info(
+        f"{len(chunks):,} chunks calculated in "
+        f"{utils.format_time(temp_time, time.time())}, "
+        f"total time: {utils.format_time(start_time, time.time())}"
+    )
 
     file_names = []
 
     for idx, chunk in enumerate(chunks):
         # must create the file
         LOG.debug(chunk)
-        new_file = "{}_{}{}".format(bam_output_temp, idx, bam_extension)
+        new_file = f"{bam_output_temp}_{idx}{bam_extension}"
         file_names.append(new_file)
-        LOG.debug("Creating FASTQ file: {}".format(new_file))
+        LOG.debug(f"Creating FASTQ file: {new_file}")
         chunk_fastq_file(filename, new_file, chunk)
 
-    LOG.info("{:,} files created in {}, total time: {}".format(len(chunks),
-                                                               utils.format_time(temp_time, time.time()),
-                                                               utils.format_time(start_time, time.time())))
+    LOG.info(
+        f"{len(chunks):,} files created in "
+        f"{utils.format_time(temp_time, time.time())}, "
+        f"total time: {utils.format_time(start_time, time.time())}"
+    )
 
     return file_names
 
@@ -367,7 +317,6 @@ def bytes_from_file(read_filename, write_filename, offset=0, bytes_size=-1):
         if offset > 0:
             fr.seek(offset)
 
-
         if bytes_size > 0:
             # specific size
             with open(write_filename, "ab") as fw:
@@ -378,8 +327,7 @@ def bytes_from_file(read_filename, write_filename, offset=0, bytes_size=-1):
                 fw.write(fr.read())
         else:
             # just creating an empty file
-            open(write_filename, 'a').close()
-
+            open(write_filename, "a").close()
 
 
 def chunk_fastq_file(fastq_filename, new_filename, parse_rec):
@@ -408,7 +356,9 @@ def chunk_fastq_file(fastq_filename, new_filename, parse_rec):
         b2.close()
 
     # grab bgzf chunks from the OLD FASTQ file and append to NEW FASTQ file
-    bytes_from_file(fastq_filename, new_filename, parse_rec.file_offset, parse_rec.file_bytes)
+    bytes_from_file(
+        fastq_filename, new_filename, parse_rec.file_offset, parse_rec.file_bytes
+    )
 
     if parse_rec.end_read_offset > 0:
         # if there are reads after a chunk offset, we need to extract them
@@ -417,7 +367,6 @@ def chunk_fastq_file(fastq_filename, new_filename, parse_rec):
         b.seek(parse_rec.end_read_offset)
         b2.write(b.read(parse_rec.end_read_size))
         b2.close()
-
 
 
 def calculate_chunks(filename, num_chunks):
@@ -440,7 +389,7 @@ def calculate_chunks(filename, num_chunks):
         return [pr]
 
     try:
-        f = open(filename, 'r')
+        f = open(filename, "r")
         # get all the block start offsets
         block_offsets = []
         decompressed_lengths = []
@@ -449,15 +398,12 @@ def calculate_chunks(filename, num_chunks):
         for values in FastBgzfBlocks(f):
             block_offsets.append(values[0])
             decompressed_lengths.append(values[3])
-
-            #if i % 50000 == 0:
-            #   print  'Block {}'.format(i)
             i += 1
 
         # partition the starts into manageable chunks
         div, mod = divmod(len(block_offsets), num_chunks)
 
-        fastq_fh = bgzf.BgzfReader(filename, 'r')
+        fastq_fh = bgzf.BgzfReader(filename, "r")
         header_size = 0
         partitioned_offsets = [(header_size, 0)]
 
@@ -467,14 +413,13 @@ def calculate_chunks(filename, num_chunks):
             virtual_offset = bgzf.make_virtual_offset(block_offsets[index], 0)
             fastq_fh.seek(virtual_offset)
             line = fastq_fh.readline().strip()
-            while line != '+':
+            while line != "+":
                 line = fastq_fh.readline().strip()
             quality_line = fastq_fh.readline()
             virtual_offset = fastq_fh.tell()
 
             # block start & within block offset
-            partitioned_offsets.append(
-                bgzf.split_virtual_offset(virtual_offset))
+            partitioned_offsets.append(bgzf.split_virtual_offset(virtual_offset))
 
         fastq_fh.close()
 
@@ -499,14 +444,17 @@ def calculate_chunks(filename, num_chunks):
                 file_bytes = partitioned_offsets[i + 1][0] - file_offset
                 # print 'file_bytes=', file_bytes
                 end_read_offset = bgzf.make_virtual_offset(
-                        partitioned_offsets[i + 1][0], 0)
+                    partitioned_offsets[i + 1][0], 0
+                )
                 end_read_size = partitioned_offsets[i + 1][1]
             elif i == num_chunks - 1:
                 # last
                 begin_read_offset = bgzf.make_virtual_offset(
-                        partitioned_offsets[i][0], partitioned_offsets[i][1])
-                begin_read_size = decompressed_lengths[index] - \
-                                  partitioned_offsets[i][1]
+                    partitioned_offsets[i][0], partitioned_offsets[i][1]
+                )
+                begin_read_size = (
+                    decompressed_lengths[index] - partitioned_offsets[i][1]
+                )
                 file_offset = block_offsets[index + 1]
                 file_bytes = -1
                 end_read_offset = 0
@@ -515,32 +463,38 @@ def calculate_chunks(filename, num_chunks):
                 # all others
                 if offset[1] == 0:
                     # bgzf boundary
-                    print '****************HUH'
+                    print("****************HUH")
                     return
 
                 begin_read_offset = bgzf.make_virtual_offset(
-                        partitioned_offsets[i][0], partitioned_offsets[i][1])
-                begin_read_size = decompressed_lengths[index] - \
-                                  partitioned_offsets[i][1]
+                    partitioned_offsets[i][0], partitioned_offsets[i][1]
+                )
+                begin_read_size = (
+                    decompressed_lengths[index] - partitioned_offsets[i][1]
+                )
                 file_offset = block_offsets[index + 1]
                 file_bytes = partitioned_offsets[i + 1][0] - file_offset
 
-
                 end_read_offset = bgzf.make_virtual_offset(
-                        partitioned_offsets[i + 1][0], 0)
+                    partitioned_offsets[i + 1][0], 0
+                )
                 end_read_size = partitioned_offsets[i + 1][1]
 
-            pr = ParseRecord(header_size, begin_read_offset, begin_read_size,
-                             file_offset, file_bytes, end_read_offset,
-                             end_read_size)
+            pr = ParseRecord(
+                header_size,
+                begin_read_offset,
+                begin_read_size,
+                file_offset,
+                file_bytes,
+                end_read_offset,
+                end_read_size,
+            )
             params.append(pr)
 
         return params
 
     except Exception as e:
-        print 'calculate_chunks error: {}'.format(str(e))
-
-
+        print(f"calculate_chunks error: {e}")
 
 
 def FastBgzfBlocks(handle):
@@ -569,9 +523,14 @@ def _quick_bgzf_load(handle):
         raise StopIteration
 
     if magic != bgzf._bgzf_magic:
-        raise ValueError("A BGZF block should start with %r, not %r; handle.tell() now says %r" % (bgzf._bgzf_magic, magic, handle.tell()))
+        raise ValueError(
+            "A BGZF block should start with %r, not %r; handle.tell() now says %r"
+            % (bgzf._bgzf_magic, magic, handle.tell())
+        )
 
-    gzip_mod_time, gzip_extra_flags, gzip_os, extra_len = struct.unpack("<LBBH", handle.read(8))
+    gzip_mod_time, gzip_extra_flags, gzip_os, extra_len = struct.unpack(
+        "<LBBH", handle.read(8)
+    )
     block_size = None
     x_len = 0
 
@@ -593,9 +552,7 @@ def _quick_bgzf_load(handle):
     return block_size, expected_size
 
 
-if __name__ == '__main__':
-    parse('data/9000samp.readID2sampID.fastq.gz', 10, 'tmp')
-
-
-    #'CREATE INDEX IF NOT EXISTS idx_mapping_read_id ON mapping (read_id ASC)',
-    #'CREATE INDEX IF NOT EXISTS idx_mapping_sample_id ON mapping (sample_id ASC)',
+if __name__ == "__main__":
+    parse("data/9000samp.readID2sampID.fastq.gz", 10, "tmp")
+    # 'CREATE INDEX IF NOT EXISTS idx_mapping_read_id ON mapping (read_id ASC)',
+    # 'CREATE INDEX IF NOT EXISTS idx_mapping_sample_id ON mapping (sample_id ASC)',

@@ -1,10 +1,8 @@
-# -*- coding: utf-8 -*-
-from six import iteritems
-
-import flask
 import math
 import os
 import sqlite3
+
+import flask
 
 from alntools import db_utils
 
@@ -36,7 +34,7 @@ def binned_log2_expr_json(sample_id, bin_size_bp):
         if log2_expr > max_expr:
             max_expr = log2_expr
 
-        for bin_index in xrange(start_bin_index, end_bin_index + 1):
+        for bin_index in range(start_bin_index, end_bin_index + 1):
             if chr not in bin_count_per_chr or bin_index + 1 > bin_count_per_chr[chr]:
                 bin_count_per_chr[chr] = bin_index + 1
 
@@ -50,9 +48,9 @@ def binned_log2_expr_json(sample_id, bin_size_bp):
                 chr_bin_dict[bin_index] = log2_expr
 
     chr_expr_bins = dict()
-    for (chr, bin_count) in iteritems(bin_count_per_chr):
+    for chr, bin_count in bin_count_per_chr.items():
         log2_expr_bins = [0] * bin_count
-        for (bin_index, bin_expr) in iteritems(expr_map[chr]):
+        for bin_index, bin_expr in expr_map[chr].items():
             log2_expr_bins[bin_index] = bin_expr
         chr_expr_bins[chr] = log2_expr_bins
 

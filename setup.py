@@ -1,67 +1,58 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
 from glob import glob
 import os
 from setuptools import setup
-import alntools
+import sys
 
-with open('README.rst') as readme_file:
+
+def get_alntools_version():
+    sys.path.insert(0, "alntools")
+    import version
+    return version.__version__
+
+
+with open("README.rst") as readme_file:
     readme = readme_file.read()
 
-with open('HISTORY.rst') as history_file:
+with open("HISTORY.rst") as history_file:
     history = history_file.read()
 
 requirements = []
 test_requirements = []
 
 
-on_rtd = os.environ.get('READTHEDOCS', None)
+on_rtd = os.environ.get("READTHEDOCS", None)
 
 if not on_rtd:
-    requirements.append('Click>=6.0')
-    requirements.append('numexpr>=2.3.1')
-    requirements.append('numpy>=1.8.2')
-    requirements.append('scipy>=0.13.3')
-    requirements.append('pysam>=0.6')
-    requirements.append('cython>=0.13')
-    requirements.append('tables>=3.1.0')
-    requirements.append('biopython>=1.63')
-    requirements.append('future>=0.16')
-    requirements.append('flask>=1.0.2')
+    with open("requirements.txt") as requirements_file:
+        requirements_lines = requirements_file.readlines()
+        for line in requirements_lines:
+            requirements.append(line)
 
 setup(
-    name='alntools',
-    version=alntools.__version__,
+    name="alntools",
+    version=get_alntools_version(),
     description="Alignment tools",
-    long_description=readme + '\n\n' + history,
+    long_description=readme + "\n\n" + history,
     author="Matthew Vincent",
-    author_email='matt.vincent@jax.org',
-    url='https://github.com/churchill-lab/alntools',
+    author_email="matt.vincent@jax.org",
+    url="https://github.com/churchill-lab/alntools",
     packages=[
-        'alntools',
+        "alntools",
     ],
-    package_dir={'alntools':
-                 'alntools'},
+    package_dir={"alntools": "alntools"},
     include_package_data=True,
     scripts=glob("bin/*"),
-    #setup_requires=requirements,
     install_requires=requirements,
     license="Apache Software License 2.0",
     zip_safe=False,
-    keywords='alntools',
+    keywords="alntools",
     classifiers=[
-        'Development cous :: 2 - Pre-Alpha',
-        'Intended Audience :: Developers',
-        'License :: OSI Approved :: Apache Software License',
-        'Natural Language :: English',
-        "Programming Language :: Python :: 2",
-        'Programming Language :: Python :: 2.6',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3',
-        'Programming Language :: Python :: 3.3',
-        'Programming Language :: Python :: 3.4',
-        'Programming Language :: Python :: 3.5',
+        "Intended Audience :: Developers",
+        "License :: OSI Approved :: Apache Software License",
+        "Natural Language :: English",
+        "Programming Language :: Python :: 3.10",
     ],
-    test_suite='tests',
-    tests_require=test_requirements
+    test_suite="tests",
+    tests_require=test_requirements,
 )

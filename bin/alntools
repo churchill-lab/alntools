@@ -1,30 +1,5 @@
 #!/usr/bin/env python
-
-from __future__ import print_function
-
-import argparse
-import importlib
-import os
-import sys
-
-from alntools import __version__ as version
 from alntools.cli import cli
 
-ext_modules = ['pysam']
-failed_modules = []
-
-
-for dependency in ext_modules:
-    try:
-        importlib.import_module(dependency)
-    except ImportError as ie:
-        failed_modules.append(dependency)
-
-if len(failed_modules) > 0:
-    sys.stderr.write('Error: The following modules need to be installed: ')
-    sys.stderr.write('\t' + ', '.join(failed_modules))
-    sys.exit(1)
-
-if __name__ == '__main__':
+if __name__ == "__main__":
     cli()
-

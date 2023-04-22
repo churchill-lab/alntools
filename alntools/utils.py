@@ -1,24 +1,10 @@
-# -*- coding: utf-8 -*-
-#
-# TODO: CHANGE LOGGING
-#
-# I DON'T LIKE THIS METHOD OF LOGGING
-#
-# I WANTED A VERBOSE METHOD, BUT DIDN'T WANT TO ADD A NEW LEVEL
-#
-# THUS...
-#
-# logging.WARNING is informational
-# logging.INFO is user debug
-# logging.DEBUG is developer debug
-#
 from collections import OrderedDict
-from past.builtins import xrange
-
 import logging
 import os
 
-logging.basicConfig(format='[alntools] [%(asctime)s] %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
+logging.basicConfig(
+    format="[alntools] [%(asctime)s] %(message)s", datefmt="%m/%d/%Y %I:%M:%S %p"
+)
 
 
 def get_logger():
@@ -75,8 +61,8 @@ def partition(lst, n):
         list: A list of length n, each containing a sublist.
     """
     q, r = divmod(len(lst), n)
-    indices = [q*i + min(i, r) for i in xrange(n+1)]
-    temp = [lst[indices[i]:indices[i+1]] for i in xrange(n)]
+    indices = [q * i + min(i, r) for i in range(n + 1)]
+    temp = [lst[indices[i] : indices[i + 1]] for i in range(n)]
 
     ret = []
     for x in temp:
@@ -127,7 +113,7 @@ def int_to_list(c, size):
 
     """
     ret = [0] * size
-    for i in xrange(0, size):
+    for i in range(0, size):
         if (c & (1 << i)) != 0:
             ret[i] = 1
     return ret
@@ -169,9 +155,9 @@ def parse_targets(target_file):
             value.
     """
     targets = OrderedDict()
-    with open(target_file, 'r') as f:
+    with open(target_file, "r") as f:
         for line in f:
-            if line and line[0] == '#':
+            if line and line[0] == "#":
                 continue
             _id = line.strip().split()[0]
             targets[_id] = len(targets)
@@ -197,7 +183,7 @@ def truncate_file(file_name, bytes_from_end):
         file_name (str): The name of the file.
         bytes_from_end (int): Number of bytes from end of file.
     """
-    f = open(file_name, 'rb+')
+    f = open(file_name, "rb+")
     f.seek(-1 * bytes_from_end, os.SEEK_END)
     f.truncate()
     f.close()
@@ -218,7 +204,7 @@ def get_bam_files(files):
         if os.path.isfile(file):
             list_files.append(file)
         elif os.path.isdir(file):
-            list_files.extend(get_files_in_dir(file, ['bam']))
+            list_files.extend(get_files_in_dir(file, ["bam"]))
 
     return list_files
 
@@ -247,23 +233,3 @@ def get_files_in_dir(directory, file_extensions=None):
         #    print(os.path.join(root, directory))
 
     return matches
-
-
-def parse_targets(target_file):
-    """Parse a file and return the targets.
-    Args:
-        target_file (str): The name of the file.
-    Returns:
-        OrderedDict: The target name as the key and the insertion order as the
-            value.
-    """
-    targets = OrderedDict()
-    with open(target_file, 'r') as f:
-        for line in f:
-            if line and line[0] == '#':
-                continue
-            _id = line.strip().split()[0]
-            targets[_id] = len(targets)
-    return targets
-
-

@@ -1,26 +1,16 @@
-# -*- coding: utf-8 -*-
 from collections import OrderedDict
 from struct import pack, unpack, calcsize
 from ntpath import basename
-
 import os
 import time
 
-from six import iteritems
-
+from scipy.sparse import csr_matrix, csc_matrix
 import numpy as np
 
-from scipy.sparse import csr_matrix, csc_matrix
-
-from .matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
-from . import utils
+from alntools.matrix.AlignmentPropertyMatrix import AlignmentPropertyMatrix as APM
+from alntools import utils
 
 LOG = utils.get_logger()
-
-try:
-    xrange
-except NameError:
-    xrange = range
 
 
 class ECFile:
@@ -48,7 +38,6 @@ class ECFile:
         # value = sample (cr) insertion order
         self.samples = OrderedDict()
         self.samples_idx = []
-
 
         #
         # Format 0 (NO LONGER SUPPORTED)
@@ -95,7 +84,6 @@ class ECFile:
         del self.targets
         del self.samples
 
-
     def __load__(self):
         if not self.filename:
             raise ValueError("empty file name, cannot load")
@@ -108,20 +96,19 @@ class ECFile:
         start_time = time.time()
 
         # attempt to see if this is gzipped (version 2)
-        with open(self.filename, 'rb') as f:
-
-            self.format = unpack('<i', f.read(_i))[0]
+        with open(self.filename, "rb") as f:
+            self.format = unpack("<i", f.read(_i))[0]
 
             if self.format == 0:
                 LOG.error("Version: 0, Reads")
-                LOG.error('Version no longer supported')
+                LOG.error("Version no longer supported")
                 raise ValueError("Unsupported Version 0")
             elif self.format == 1:
                 LOG.error("Version: 1, Equivalence Class")
             elif self.format == 2:
                 LOG.error("Version: 2, Multisample")
             else:
-                LOG.error("Unknown version: {}, exiting".format(self.format))
+                LOG.error(f"Unknown version: {self.format}, exiting")
                 LOG.error("Exiting")
                 return
 
@@ -149,19 +136,22 @@ class ECFile:
             self.haplotypes = OrderedDict()
             self.haplotypes_idx = []
 
-            num_haplotypes = unpack('<i', f.read(_i))[0]
-            LOG.error("Haplotype Count: {0:,}".format(num_haplotypes))
+            num_haplotypes = unpack("<i", f.read(_i))[0]
+            LOG.error(f"Haplotype Count: {num_haplotypes:,}")
 
-            for i in xrange(0, num_haplotypes):
-                str_len = unpack('<i', f.read(_i))[0]
-                haplotype = unpack('<{}s'.format(str_len), f.read(_s * str_len))[0]
+            for i in range(0, num_haplotypes):
+                str_len = unpack("<i", f.read(_i))[0]
+                haplotype = unpack(f"<{str_len}s", f.read(_s * str_len))[0]
                 self.haplotypes[haplotype] = i
                 self.haplotypes_idx.append(haplotype)
-                LOG.debug("{} {}".format(i, haplotype))
+                LOG.debug(f"{i} {haplotype}")
 
-            LOG.info("Haplotypes extracted in {}, total time: {}".format(
-                        utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+            LOG.info(
+                "Haplotypes extracted in {}, total time: {}".format(
+                    utils.format_time(temp_time, time.time()),
+                    utils.format_time(start_time, time.time()),
+                )
+            )
 
             #
             # SECTION: TARGETS
@@ -184,25 +174,28 @@ class ECFile:
             self.targets_idx = []
             self.targets_lengths = OrderedDict()
 
-            num_targets = unpack('<i', f.read(_i))[0]
-            LOG.error("Target Count: {0:,}".format(num_targets))
+            num_targets = unpack("<i", f.read(_i))[0]
+            LOG.error(f"Target Count: {num_targets:,}")
 
-            for i in xrange(0, num_targets):
-                str_len = unpack('<i', f.read(_i))[0]
-                target = unpack('<{}s'.format(str_len), f.read(_s * str_len))[0]
+            for i in range(0, num_targets):
+                str_len = unpack("<i", f.read(_i))[0]
+                target = unpack(f"<{str_len}s", f.read(_s * str_len))[0]
                 self.targets[target] = i
                 self.targets_idx.append(target)
-                LOG.debug("{} {}".format(i, target))
+                LOG.debug(f"{i} {target}")
 
                 hap_length = OrderedDict()
-                for (haplotype, idx) in iteritems(self.haplotypes):
-                    hap_length[haplotype] = unpack('<i', f.read(_i))[0]
+                for haplotype, idx in self.haplotypes.items():
+                    hap_length[haplotype] = unpack("<i", f.read(_i))[0]
 
                 self.targets_lengths[target] = hap_length
 
-            LOG.info("Targets extracted in {}, total time: {}".format(
-                        utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+            LOG.info(
+                "Targets extracted in {}, total time: {}".format(
+                    utils.format_time(temp_time, time.time()),
+                    utils.format_time(start_time, time.time()),
+                )
+            )
 
             if self.format == 1:
                 #
@@ -223,15 +216,22 @@ class ECFile:
                 #     stored as the haplotype flag.
                 #
 
-                indptr_length = unpack('<i', f.read(_i))[0]
-                nnz = unpack('<i', f.read(_i))[0]
+                indptr_length = unpack("<i", f.read(_i))[0]
+                nnz = unpack("<i", f.read(_i))[0]
 
                 LOG.debug("A MATRIX INDPTR Length: {0:,}".format(indptr_length))
                 LOG.debug("A MATRIX NNZ: {0:,}".format(nnz))
 
-                indptr = np.array(unpack('<{}i'.format(indptr_length), f.read(_i * indptr_length)), dtype=np.int32)
-                indices = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
-                data = np.array(unpack('<{}i'.format(nnz), f.read(_i * nnz)), dtype=np.int32)
+                indptr = np.array(
+                    unpack("<{}i".format(indptr_length), f.read(_i * indptr_length)),
+                    dtype=np.int32,
+                )
+                indices = np.array(
+                    unpack("<{}i".format(nnz), f.read(_i * nnz)), dtype=np.int32
+                )
+                data = np.array(
+                    unpack("<{}i".format(nnz), f.read(_i * nnz)), dtype=np.int32
+                )
 
                 self.a_matrix = csr_matrix((data, indices, indptr))
 
@@ -239,10 +239,10 @@ class ECFile:
                 # EC
                 #
 
-                num_ec = unpack('<i', f.read(_i))[0]
+                num_ec = unpack("<i", f.read(_i))[0]
                 print("EC Count: {0:,}".format(num_ec))
 
-                ec = list(unpack('<{}i'.format(num_ec), f.read(_i * num_ec)))
+                ec = list(unpack("<{}i".format(num_ec), f.read(_i * num_ec)))
 
                 # convert to Format 2, "N" Matrix
                 self.samples = OrderedDict()
@@ -260,19 +260,22 @@ class ECFile:
 
                 self.samples = OrderedDict()
 
-                num_samples = unpack('<i', f.read(_i))[0]
+                num_samples = unpack("<i", f.read(_i))[0]
                 LOG.error("Sample Count: {0:,}".format(num_samples))
 
-                for i in xrange(0, num_samples):
-                    str_len = unpack('<i', f.read(_i))[0]
-                    sample = unpack('<{}s'.format(str_len), f.read(_s * str_len))[0]
+                for i in range(0, num_samples):
+                    str_len = unpack("<i", f.read(_i))[0]
+                    sample = unpack("<{}s".format(str_len), f.read(_s * str_len))[0]
                     self.samples[sample] = i
                     self.samples_idx.append(sample)
                     LOG.debug("{} {}".format(i, sample))
 
-                LOG.info("Samples extracted in {}, total time: {}".format(
+                LOG.info(
+                    "Samples extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
                 #
                 # SECTION: "A" Matrix
@@ -295,44 +298,59 @@ class ECFile:
                 temp_time = time.time()
                 a_time = time.time()
 
-                indptr_length = unpack('<i', f.read(_i))[0]
-                nnz = unpack('<i', f.read(_i))[0]
+                indptr_length = unpack("<i", f.read(_i))[0]
+                nnz = unpack("<i", f.read(_i))[0]
 
                 LOG.error("A MATRIX INDPTR Length: {0:,}".format(indptr_length))
                 LOG.error("A MATRIX NNZ: {0:,}".format(nnz))
 
                 indptr = np.fromfile(f, count=indptr_length, dtype=np.int32)
 
-                LOG.info("indptr extracted in {}, total time: {}".format(
+                LOG.info(
+                    "indptr extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
                 temp_time = time.time()
 
                 indices = np.fromfile(f, count=nnz, dtype=np.int32)
 
-                LOG.info("indices extracted in {}, total time: {}".format(
+                LOG.info(
+                    "indices extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
                 temp_time = time.time()
 
                 data = np.fromfile(f, count=nnz, dtype=np.int32)
 
-                LOG.info("data extracted in {}, total time: {}".format(
+                LOG.info(
+                    "data extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
                 temp_time = time.time()
 
                 self.a_matrix = csr_matrix((data, indices, indptr))
 
-                LOG.info("A matrix created in {}, total time: {}".format(
+                LOG.info(
+                    "A matrix created in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
-                LOG.info("A matrix extraction and creation: {}".format(
-                        utils.format_time(a_time, time.time())))
+                LOG.info(
+                    "A matrix extraction and creation: {}".format(
+                        utils.format_time(a_time, time.time())
+                    )
+                )
 
                 #
                 # SECTION: "N" Matrix
@@ -359,76 +377,93 @@ class ECFile:
                 temp_time = time.time()
                 n_time = time.time()
 
-                indptr_length = unpack('<i', f.read(_i))[0]
-                nnz = unpack('<i', f.read(_i))[0]
+                indptr_length = unpack("<i", f.read(_i))[0]
+                nnz = unpack("<i", f.read(_i))[0]
 
                 LOG.error("N MATRIX INDPTR Length: {0:,}".format(indptr_length))
                 LOG.error("N MATRIX NNZ: {0:,}".format(nnz))
 
                 indptr = np.fromfile(f, count=indptr_length, dtype=np.int32)
 
-                LOG.info("indptr extracted in {}, total time: {}".format(
+                LOG.info(
+                    "indptr extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
                 temp_time = time.time()
 
                 indices = np.fromfile(f, count=nnz, dtype=np.int32)
 
-                LOG.info("indices extracted in {}, total time: {}".format(
+                LOG.info(
+                    "indices extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
                 temp_time = time.time()
 
                 data = np.fromfile(f, count=nnz, dtype=np.int32)
 
-                LOG.info("data extracted in {}, total time: {}".format(
+                LOG.info(
+                    "data extracted in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
                 temp_time = time.time()
 
                 self.n_matrix = csc_matrix((data, indices, indptr))
 
-                LOG.info("N matrix created in {}, total time: {}".format(
+                LOG.info(
+                    "N matrix created in {}, total time: {}".format(
                         utils.format_time(temp_time, time.time()),
-                        utils.format_time(start_time, time.time())))
+                        utils.format_time(start_time, time.time()),
+                    )
+                )
 
-                LOG.info("N matrix extraction and creation: {}".format(
-                        utils.format_time(n_time, time.time())))
+                LOG.info(
+                    "N matrix extraction and creation: {}".format(
+                        utils.format_time(n_time, time.time())
+                    )
+                )
 
-                LOG.info("All data parsed in: {}".format(
-                        utils.format_time(start_time, time.time())))
+                LOG.info(
+                    "All data parsed in: {}".format(
+                        utils.format_time(start_time, time.time())
+                    )
+                )
 
     def get_ec_crs_dict(self):
         start_time = time.time()
         ecs = OrderedDict()
-        for idx in xrange(len(self.n_matrix.indptr) - 1):
-            ec_key = ','.join(map(str, self.n_matrix.getrow(idx).nonzero()[1]))
+        for idx in range(len(self.n_matrix.indptr) - 1):
+            ec_key = ",".join(map(str, self.n_matrix.getrow(idx).nonzero()[1]))
             ecs[ec_key] = len(ecs)
-        LOG.info("dict: {}".format(
-                utils.format_time(start_time, time.time())))
+        LOG.info("dict: {}".format(utils.format_time(start_time, time.time())))
 
     def save(self, filename=None):
         start_time = time.time()
 
         if filename is None and self.filename is None:
-            raise ValueError('No filename specified')
+            raise ValueError("No filename specified")
 
         if filename:
             self.filename = filename
 
-        LOG.info('Saving file {}'.format(self.filename))
+        LOG.info("Saving file {}".format(self.filename))
 
         try:
             os.remove(self.filename)
         except:
             pass
 
-        with open(self.filename, 'wb') as f:
+        with open(self.filename, "wb") as f:
             # FORMAT
-            f.write(pack('<i', self.format))
+            f.write(pack("<i", self.format))
             LOG.info("FORMAT: {}".format(self.format))
 
             #
@@ -451,11 +486,11 @@ class ECFile:
             #
 
             LOG.info("NUMBER OF HAPLOTYPES: {:,}".format(len(self.haplotypes_idx)))
-            f.write(pack('<i', len(self.haplotypes_idx)))
+            f.write(pack("<i", len(self.haplotypes_idx)))
             for idx, hap in enumerate(self.haplotypes_idx):
                 # LOG.debug("{:,}\t{}\t# {:,}".format(len(hap), hap, idx))
-                f.write(pack('<i', len(hap)))
-                f.write(pack('<{}s'.format(len(hap)), hap))
+                f.write(pack("<i", len(hap)))
+                f.write(pack("<{}s".format(len(hap)), hap))
 
             #
             # SECTION: TARGETS
@@ -473,16 +508,16 @@ class ECFile:
             #
 
             LOG.info("NUMBER OF TARGETS: {:,}".format(len(self.targets_idx)))
-            f.write(pack('<i', len(self.targets_idx)))
+            f.write(pack("<i", len(self.targets_idx)))
             for idx, target in enumerate(self.targets_idx):
-                f.write(pack('<i', len(target)))
-                f.write(pack('<{}s'.format(len(target)), target))
+                f.write(pack("<i", len(target)))
+                f.write(pack("<{}s".format(len(target)), target))
 
-                for (key_l, val_l) in iteritems(self.targets_lengths[target]):
-                    f.write(pack('<i', val_l))
-                    #lengths.append(str(length))
+                for key_l, val_l in self.targets_lengths[target].items():
+                    f.write(pack("<i", val_l))
+                    # lengths.append(str(length))
 
-                #LOG.debug("#{:,} --> {:,}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
+                # LOG.debug("#{:,} --> {:,}\t{}\t{}\t".format(idx, len(main_target), main_target, '\t'.join(lengths)))
 
             #
             # SECTION: CRS
@@ -499,11 +534,11 @@ class ECFile:
             #
 
             LOG.info("SAMPLES: {:,}".format(len(self.samples_idx)))
-            f.write(pack('<i', len(self.samples_idx)))
+            f.write(pack("<i", len(self.samples_idx)))
             for idx, sample in enumerate(self.samples_idx):
-                #LOG.debug("{:,}\t{}\t# {:,}".format(len(sample), sample, idx))
-                f.write(pack('<i', len(sample)))
-                f.write(pack('<{}s'.format(len(sample)), sample))
+                # LOG.debug("{:,}\t{}\t# {:,}".format(len(sample), sample, idx))
+                f.write(pack("<i", len(sample)))
+                f.write(pack("<{}s".format(len(sample)), sample))
 
             #
             # SECTION: "A" Matrix
@@ -524,23 +559,29 @@ class ECFile:
             #
 
             LOG.info("A MATRIX: INDPTR LENGTH {:,}".format(len(self.a_matrix.indptr)))
-            f.write(pack('<i', len(self.a_matrix.indptr)))
+            f.write(pack("<i", len(self.a_matrix.indptr)))
 
             # NON ZEROS
             LOG.info("A MATRIX: NUMBER OF NON ZERO: {:,}".format(self.a_matrix.nnz))
-            f.write(pack('<i', self.a_matrix.nnz))
+            f.write(pack("<i", self.a_matrix.nnz))
 
             # ROW OFFSETS
             LOG.info("A MATRIX: LENGTH INDPTR: {:,}".format(len(self.a_matrix.indptr)))
-            f.write(pack('<{}i'.format(len(self.a_matrix.indptr)), *self.a_matrix.indptr))
+            f.write(
+                pack("<{}i".format(len(self.a_matrix.indptr)), *self.a_matrix.indptr)
+            )
 
             # COLUMNS
-            LOG.info("A MATRIX: LENGTH INDICES: {:,}".format(len(self.a_matrix.indices)))
-            f.write(pack('<{}i'.format(len(self.a_matrix.indices)), *self.a_matrix.indices))
+            LOG.info(
+                "A MATRIX: LENGTH INDICES: {:,}".format(len(self.a_matrix.indices))
+            )
+            f.write(
+                pack("<{}i".format(len(self.a_matrix.indices)), *self.a_matrix.indices)
+            )
 
             # DATA
             LOG.info("A MATRIX: LENGTH DATA: {:,}".format(len(self.a_matrix.data)))
-            f.write(pack('<{}i'.format(len(self.a_matrix.data)), *self.a_matrix.data))
+            f.write(pack("<{}i".format(len(self.a_matrix.data)), *self.a_matrix.data))
 
             #
             # SECTION: "N" Matrix
@@ -553,25 +594,35 @@ class ECFile:
             #
 
             LOG.info("N MATRIX: INDPTR LENGTH {:,}".format(len(self.n_matrix.indptr)))
-            f.write(pack('<i', len(self.n_matrix.indptr)))
+            f.write(pack("<i", len(self.n_matrix.indptr)))
 
             # NON ZEROS
             LOG.info("N MATRIX: NUMBER OF NON ZERO: {:,}".format(self.n_matrix.nnz))
-            f.write(pack('<i', self.n_matrix.nnz))
+            f.write(pack("<i", self.n_matrix.nnz))
 
             # ROW OFFSETS
             LOG.info("N MATRIX: LENGTH INDPTR: {:,}".format(len(self.n_matrix.indptr)))
-            f.write(pack('<{}i'.format(len(self.n_matrix.indptr)), *self.n_matrix.indptr))
+            f.write(
+                pack("<{}i".format(len(self.n_matrix.indptr)), *self.n_matrix.indptr)
+            )
 
             # COLUMNS
-            LOG.info("N MATRIX: LENGTH INDICES: {:,}".format(len(self.n_matrix.indices)))
-            f.write(pack('<{}i'.format(len(self.n_matrix.indices)), *self.n_matrix.indices))
+            LOG.info(
+                "N MATRIX: LENGTH INDICES: {:,}".format(len(self.n_matrix.indices))
+            )
+            f.write(
+                pack("<{}i".format(len(self.n_matrix.indices)), *self.n_matrix.indices)
+            )
 
             # DATA
             LOG.info("N MATRIX: LENGTH DATA: {:,}".format(len(self.n_matrix.data)))
-            f.write(pack('<{}i'.format(len(self.n_matrix.data)), *self.n_matrix.data))
+            f.write(pack(f"<{len(self.n_matrix.data)}i", *self.n_matrix.data))
 
-        LOG.info("{} created in {}".format(self.filename, utils.format_time(start_time, time.time())))
+        LOG.info(
+            "{} created in {}".format(
+                self.filename, utils.format_time(start_time, time.time())
+            )
+        )
 
     def toAPM(self):
         try:
@@ -580,50 +631,53 @@ class ECFile:
 
             num_haplotypes = len(self.haplotypes_idx)
 
-            new_shape = (len(self.targets_idx),
-                         num_haplotypes,
-                         self.a_matrix.shape[0])
+            new_shape = (len(self.targets_idx), num_haplotypes, self.a_matrix.shape[0])
 
-            LOG.debug('Shape={}'.format(new_shape))
+            LOG.debug(f"Shape={new_shape}")
 
             # final.ec.values -> the number of times this equivalence class has appeared
 
-            ec_ids = [x for x in xrange(0, self.a_matrix.shape[0])]
+            ec_ids = [x for x in range(0, self.a_matrix.shape[0])]
 
-            apm = APM(shape=new_shape,
-                      haplotype_names=self.haplotypes_idx,
-                      locus_names=self.targets_idx,
-                      read_names=ec_ids,
-                      sample_names=self.samples_idx)
+            apm = APM(
+                shape=new_shape,
+                haplotype_names=self.haplotypes_idx,
+                locus_names=self.targets_idx,
+                read_names=ec_ids,
+                sample_names=self.samples_idx,
+            )
 
             # make a copy, decode the bits, set correct values
-            LOG.debug('Making copies for APM data...')
+            LOG.debug("Making copies for APM data...")
 
-            for h in xrange(0, num_haplotypes):
+            for h in range(0, num_haplotypes):
                 apm.data[h] = self.a_matrix.copy()
 
-            LOG.debug('Setting values...')
+            LOG.debug("Setting values...")
 
             if num_haplotypes != 1:
                 for idx, val in enumerate(self.a_matrix.data):
-
                     if idx % 100000 == 0:
-                        LOG.debug('{:,} out of {:,}'.format(idx, len(self.a_matrix.data)))
+                        LOG.debug(f"{idx:,} out of {len(self.a_matrix.data):,}")
 
                     hap_values = utils.int_to_list(val, num_haplotypes)
-                    #print hap_values
+                    # print hap_values
                     for i, h in enumerate(hap_values):
                         apm.data[i].data[idx] = h
 
-            LOG.debug('Eliminating zeros...')
+            LOG.debug("Eliminating zeros...")
 
-            for h in xrange(0, num_haplotypes):
+            for h in range(0, num_haplotypes):
                 apm.data[h].eliminate_zeros()
 
             apm.count = self.n_matrix
 
-            LOG.info("APM Created in {}, total time: {}".format(utils.format_time(temp_time, time.time()),
-                                                                utils.format_time(start_time, time.time())))
+            LOG.info(
+                "APM Created in {}, total time: {}".format(
+                    utils.format_time(temp_time, time.time()),
+                    utils.format_time(start_time, time.time()),
+                )
+            )
 
             return apm
 
